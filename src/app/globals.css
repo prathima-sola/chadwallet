@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
+/* ─── ChadWallet design tokens ─── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --cw-bg: #080404;
+  --cw-surface: #0f0808;
+  --cw-card: rgba(255, 255, 255, 0.03);
+  --cw-card-hover: rgba(255, 255, 255, 0.055);
+  --cw-border: rgba(255, 255, 255, 0.06);
+  --cw-border-hover: rgba(255, 255, 255, 0.12);
+  --cw-accent: #00d97e;
+  --cw-green: #00d97e;
+  --cw-red: #ff4444;
+  --cw-muted: rgba(255, 255, 255, 0.4);
+  --cw-dim: rgba(255, 255, 255, 0.25);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ─── Base ─── */
+html,
+body {
+  background-color: var(--cw-bg);
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Ticker scroll animation ─── */
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.ticker-track {
+  animation: ticker 30s linear infinite;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

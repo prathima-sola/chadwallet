@@ -1,65 +1,146 @@
-import Image from "next/image";
+import { getTokenList, type BirdeyeToken } from "@/lib/birdeye";
+import TokenCard, { type Token } from "@/components/TokenCard";
 
-export default function Home() {
+// Map BirdEye response shape to our TokenCard shape
+function toToken(t: BirdeyeToken): Token {
+  return {
+    address: t.address,
+    symbol: t.symbol,
+    name: t.name,
+    price: t.price,
+    priceChange24h: t.v24hChangePercent ?? 0,
+    marketCap: t.mc,
+    volume24h: t.v24hUSD,
+    logoUrl: t.logoURI,
+  };
+}
+
+const TABS = ["Trending", "Gainers", "Losers"] as const;
+
+export default async function HomePage() {
+  // Server-side fetch — API key never touches the browser
+  let tokens: Token[] = [];
+  let error: string | null = null;
+
+  try {
+    const raw = await getTokenList({ sortBy: "v24hUSD", sortType: "desc", limit: 50 });
+    tokens = raw.map(toToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Failed to fetch tokens";
+  }
+
+  const tickerTokens = tokens.slice(0, 10);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div>
+      {/* Scrolling ticker */}
+      <div
+        style={{
+          borderBottom: "1px solid var(--cw-border)",
+          backgroundColor: "rgba(255,255,255,0.02)",
+          height: 36,
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        <div className="ticker-track" style={{ display: "flex", whiteSpace: "nowrap" }}>
+          {[...tickerTokens, ...tickerTokens].map((t, i) => (
+            <span
+              key={i}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "0 16px",
+                borderRight: "1px solid rgba(255,255,255,0.05)",
+              }}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              <span style={{ fontSize: 12, color: "var(--cw-muted)", fontFamily: "var(--font-mono)" }}>
+                ${t.symbol}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontFamily: "var(--font-mono)",
+                  color: t.priceChange24h >= 0 ? "var(--cw-green)" : "var(--cw-red)",
+                }}
+              >
+                {t.priceChange24h >= 0 ? "+" : ""}
+                {Math.abs(t.priceChange24h) >= 1000
+                  ? `${(t.priceChange24h / 100).toFixed(1)}X`
+                  : `${t.priceChange24h.toFixed(2)}%`}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ padding: "20px" }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--cw-dim)",
+            textTransform: "uppercase",
+            letterSpacing: "0.8px",
+            marginBottom: 10,
+          }}
+        >
+          Trending tokens
+        </div>
+
+        {/* Filter tabs */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+          {TABS.map((tab, i) => (
+            <button
+              key={tab}
+              style={{
+                fontSize: 12,
+                padding: "5px 12px",
+                borderRadius: 6,
+                border: "1px solid transparent",
+                cursor: "pointer",
+                backgroundColor: i === 0 ? "rgba(255,255,255,0.05)" : "transparent",
+                borderColor: i === 0 ? "rgba(255,255,255,0.15)" : "transparent",
+                color: i === 0 ? "#fff" : "var(--cw-muted)",
+              }}
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              {tab}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Error state */}
+        {error && (
+          <div
+            style={{
+              padding: "16px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,68,68,0.2)",
+              backgroundColor: "rgba(255,68,68,0.05)",
+              color: "var(--cw-red)",
+              fontSize: 13,
+              marginBottom: 16,
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {error}
+          </div>
+        )}
+
+        {/* Token grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 10,
+          }}
+        >
+          {tokens.map((token) => (
+            <TokenCard key={token.address} token={token} />
+          ))}
         </div>
-      </main>
+      </div>
     </div>
   );
 }
