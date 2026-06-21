@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
     const supabase = createServerSupabase();
 
     // Upsert on tx_signature (UNIQUE) — safe to call twice if user retries
-    const { error } = await supabase.from("trades").upsert(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("trades") as any).upsert(
       {
         user_wallet,
         token_mint,
