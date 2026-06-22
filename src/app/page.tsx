@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { getTokenList, type BirdeyeToken } from "@/lib/birdeye";
 import TokenCard, { type Token } from "@/components/TokenCard";
 
-// Map BirdEye response shape to our TokenCard shape
 function toToken(t: BirdeyeToken): Token {
   return {
     address: t.address,
@@ -15,15 +15,29 @@ function toToken(t: BirdeyeToken): Token {
   };
 }
 
-const TABS = ["Trending", "Gainers", "Losers"] as const;
+const TABS = [
+  { label: "Trending", value: "trending", sortBy: "v24hUSD", sortType: "desc" },
+  { label: "Gainers",  value: "gainers",  sortBy: "v24hChangePercent", sortType: "desc" },
+  { label: "Losers",   value: "losers",   sortBy: "v24hChangePercent", sortType: "asc" },
+] as const;
 
-export default async function HomePage() {
-  // Server-side fetch — API key never touches the browser
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const activeTab = TABS.find((t) => t.value === tab) ?? TABS[0];
+
   let tokens: Token[] = [];
   let error: string | null = null;
 
   try {
-    const raw = await getTokenList({ sortBy: "v24hUSD", sortType: "desc", limit: 50 });
+    const raw = await getTokenList({
+      sortBy: activeTab.sortBy,
+      sortType: activeTab.sortType,
+      limit: 50,
+    });
     tokens = raw.map(toToken);
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to fetch tokens";
@@ -87,31 +101,33 @@ export default async function HomePage() {
             marginBottom: 10,
           }}
         >
-          Trending tokens
+          {activeTab.label} tokens
         </div>
 
         {/* Filter tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-          {TABS.map((tab, i) => (
-            <button
-              key={tab}
-              style={{
-                fontSize: 12,
-                padding: "5px 12px",
-                borderRadius: 6,
-                border: "1px solid transparent",
-                cursor: "pointer",
-                backgroundColor: i === 0 ? "rgba(255,255,255,0.05)" : "transparent",
-                borderColor: i === 0 ? "rgba(255,255,255,0.15)" : "transparent",
-                color: i === 0 ? "#fff" : "var(--cw-muted)",
-              }}
-            >
-              {tab}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const isActive = t.value === activeTab.value;
+            return (
+              <Link
+                key={t.value}
+                href={t.value === "trending" ? "/" : `/?tab=${t.value}`}
+                style={{
+                  fontSize: 12,
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  border: `1px solid ${isActive ? "rgba(255,255,255,0.15)" : "transparent"}`,
+                  textDecoration: "none",
+                  backgroundColor: isActive ? "rgba(255,255,255,0.05)" : "transparent",
+                  color: isActive ? "#fff" : "var(--cw-muted)",
+                }}
+              >
+                {t.label}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Error state */}
         {error && (
           <div
             style={{
