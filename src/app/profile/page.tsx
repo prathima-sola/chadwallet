@@ -26,7 +26,7 @@ export default function ProfilePage() {
       .single()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }: any) => {
-        if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+        if (data?.avatar_url) setAvatarUrl(data.avatar_url + "?t=" + Date.now());
       });
   }, [userId]);
 
@@ -55,7 +55,7 @@ export default function ProfilePage() {
         { onConflict: "user_id" }
       );
 
-      setAvatarUrl(data.url);
+      setAvatarUrl(data.url + "?t=" + Date.now());
       setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
