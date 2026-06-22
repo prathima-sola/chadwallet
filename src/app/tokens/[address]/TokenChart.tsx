@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { UTCTimestamp } from "lightweight-charts";
 import type { OHLCVBar } from "@/lib/birdeye";
 
 type Interval = "15m" | "1H" | "4H" | "1D";
@@ -24,7 +25,7 @@ function toChartBars(bars: OHLCVBar[]) {
       return b.o > 0 && b.h > 0 && b.l > 0 && b.c > 0;
     })
     .map((b) => ({
-      time: b.unixTime as number,
+      time: b.unixTime as UTCTimestamp,
       open: b.o,
       high: b.h,
       low: b.l,
