@@ -193,7 +193,7 @@ export default async function TokenPage({
               holders: overview.holder ?? 0,
               recentBuys: trades.filter((t) => t.side === "buy").length,
               recentSells: trades.filter((t) => t.side === "sell").length,
-              priceHigh24h: overview.priceChange24h ? (overview.price ?? 0) * (1 + Math.abs(overview.priceChange24hPercent ?? 0) / 100) : 0,
+              priceHigh24h: (overview.price ?? 0) * (1 + Math.abs(overview.priceChange24hPercent ?? 0) / 100),
               priceLow24h: overview.price ?? 0,
               barCount: initialBars.length,
             }}
