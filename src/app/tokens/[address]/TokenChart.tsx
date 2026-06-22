@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { UTCTimestamp } from "lightweight-charts";
+import type { UTCTimestamp, CandlestickData } from "lightweight-charts";
 import type { OHLCVBar } from "@/lib/birdeye";
 
 type Interval = "15m" | "1H" | "4H" | "1D";
@@ -13,7 +13,7 @@ const INTERVALS: { label: string; value: Interval }[] = [
   { label: "1D", value: "1D" },
 ];
 
-function toChartBars(bars: OHLCVBar[]) {
+function toChartBars(bars: OHLCVBar[]): CandlestickData<UTCTimestamp>[] {
   // lightweight-charts needs strictly ascending unique timestamps
   // BirdEye uses o/h/l/c (not open/high/low/close)
   const sorted = [...bars].sort((a, b) => a.unixTime - b.unixTime);
