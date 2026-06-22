@@ -14,7 +14,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           showWalletLoginFirst: false,
         },
         embeddedWallets: {
-          createOnLogin: "off",
+          ethereum: { createOnLogin: "off" },
+          solana: { createOnLogin: "off" },
         },
       }}
     >
