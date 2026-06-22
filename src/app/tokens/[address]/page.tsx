@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { getTokenOverview, getOHLCV, getTokenTransactions } from "@/lib/birdeye";
+import { getTokenOverview, getOHLCV, getTokenTransactions, getTokenHolders } from "@/lib/birdeye";
 import TokenChart from "./TokenChart";
 import TradePanel from "./TradePanel";
 import LiveTrades from "./LiveTrades";
 import AIAnalysis from "./AIAnalysis";
+import TopHolders from "./TopHolders";
 
 function formatPrice(price: number): string {
   if (price >= 1) return `$${price.toFixed(2)}`;
@@ -29,13 +30,15 @@ export default async function TokenPage({
   // BirdEye free tier rate-limits parallel calls (429).
   const overview = await getTokenOverview(address);
 
-  const [barsResult, tradesResult] = await Promise.allSettled([
+  const [barsResult, tradesResult, holdersResult] = await Promise.allSettled([
     getOHLCV({ address, type: "15m", limit: 200 }),
     getTokenTransactions(address, 30),
+    getTokenHolders(address, 10),
   ]);
 
   const initialBars = barsResult.status === "fulfilled" ? barsResult.value : [];
   const trades = tradesResult.status === "fulfilled" ? tradesResult.value : [];
+  const holders = holdersResult.status === "fulfilled" ? holdersResult.value : [];
 
   const isPositive = (overview.priceChange24hPercent ?? 0) >= 0;
 
@@ -179,8 +182,9 @@ export default async function TokenPage({
           <LiveTrades trades={trades} tokenSymbol={overview.symbol} />
         </div>
 
-        {/* AI Analysis panel */}
-        <div style={{ borderLeft: "1px solid var(--cw-border)", padding: 16 }}>
+        {/* AI Analysis + Top Holders */}
+        <div style={{ borderLeft: "1px solid var(--cw-border)" }}>
+          <div style={{ padding: 16 }}>
           <AIAnalysis
             tokenData={{
               name: overview.name ?? overview.symbol,
@@ -198,6 +202,10 @@ export default async function TokenPage({
               barCount: initialBars.length,
             }}
           />
+          </div>
+          <div style={{ borderTop: "1px solid var(--cw-border)", marginTop: 8 }}>
+            <TopHolders holders={holders} totalSupply={overview.supply} />
+          </div>
         </div>
       </div>
     </div>

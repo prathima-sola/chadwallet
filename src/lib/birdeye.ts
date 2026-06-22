@@ -169,6 +169,36 @@ export async function getOHLCV({
   return json.data?.items ?? [];
 }
 
+// ─── Top token holders ───────────────────────────────────────────────────────
+
+export interface TokenHolder {
+  address: string;
+  amount: number;
+  decimals: number;
+  uiAmount: number;
+  percentage: number;
+}
+
+export async function getTokenHolders(
+  address: string,
+  limit = 10
+): Promise<TokenHolder[]> {
+  const params = new URLSearchParams({
+    address,
+    offset: "0",
+    limit: String(limit),
+  });
+
+  const res = await birdeyeFetch(`${BASE_URL}/defi/token_holder?${params}`, {
+    headers: headers(),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) return [];
+  const json = await res.json();
+  return json.data?.items ?? [];
+}
+
 // ─── Token transactions (recent swaps) ───────────────────────────────────────
 
 export interface TokenTransaction {
