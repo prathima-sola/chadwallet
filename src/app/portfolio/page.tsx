@@ -51,13 +51,13 @@ function MiniAreaChart({ values, color }: { values: number[]; color: string }) {
 
 export default function PortfolioPage() {
   const { authenticated, ready, login, user } = usePrivy();
-  const wallet = user?.wallet?.address ?? null;
+  const [phantomAddress, setPhantomAddress] = useState<string | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [phantomAddress, setPhantomAddress] = useState<string | null>(null);
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [usdValue, setUsdValue] = useState<number | null>(null);
+  const wallet = user?.wallet?.address ?? phantomAddress ?? null;
 
   // Detect Phantom wallet and fetch balance
   useEffect(() => {
