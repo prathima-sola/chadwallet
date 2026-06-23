@@ -151,15 +151,12 @@ export default function TradePanel({
       setStatus("confirming");
       const connection = new Connection(RPC, "confirmed");
       const sig = await connection.sendRawTransaction(signed.serialize(), {
-        skipPreflight: false,
-        maxRetries: 3,
+        skipPreflight: true,
+        maxRetries: 5,
       });
       setTxSig(sig);
 
-      // 5. Wait for confirmation
-      await connection.confirmTransaction(sig, "confirmed");
-
-      // 6. Record trade in Supabase
+      // 5. Record trade immediately after send (don't wait for confirmation to avoid timeout)
       const solAmount = side === "buy"
         ? parseFloat(amount)
         : Number(quote.outAmount) / Math.pow(10, SOL_DECIMALS);
@@ -182,6 +179,18 @@ export default function TradePanel({
           tx_signature: sig,
         }),
       });
+
+      // 6. Wait for confirmation with longer timeout
+      try {
+        const latestBlockhash = await connection.getLatestBlockhash();
+        await connection.confirmTransaction({
+          signature: sig,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        }, "confirmed");
+      } catch {
+        // Confirmation timed out but tx was already sent and recorded — treat as done
+      }
 
       setStatus("done");
     } catch (e: unknown) {

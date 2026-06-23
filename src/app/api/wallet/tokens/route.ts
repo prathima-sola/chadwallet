@@ -39,36 +39,47 @@ export async function GET(req: NextRequest) {
       })
       .filter((t: any) => t.amount > 0); // skip zero-balance accounts
 
-    // Fetch prices from BirdEye for tokens we hold
+    // Fetch metadata from Jupiter (free, no API key) + prices from BirdEye
     let withPrices = tokens;
-    if (tokens.length > 0 && process.env.BIRDEYE_API_KEY) {
-      const mints = tokens.map((t: any) => t.mint).slice(0, 10); // max 10
-      const priceResults = await Promise.allSettled(
+    if (tokens.length > 0) {
+      const mints = tokens.map((t: any) => t.mint).slice(0, 10);
+
+      // Jupiter token metadata (free)
+      const metaResults = await Promise.allSettled(
         mints.map((mint: string) =>
-          fetch(`https://public-api.birdeye.so/defi/token_overview?address=${mint}`, {
-            headers: {
-              accept: "application/json",
-              "x-chain": "solana",
-              "X-API-KEY": process.env.BIRDEYE_API_KEY!,
-            },
-          }).then((r) => r.json())
+          fetch(`https://tokens.jup.ag/token/${mint}`, {
+            headers: { accept: "application/json" },
+          }).then((r) => r.ok ? r.json() : null)
         )
       );
 
+      // BirdEye prices
+      const priceResults = process.env.BIRDEYE_API_KEY
+        ? await Promise.allSettled(
+            mints.map((mint: string) =>
+              fetch(`https://public-api.birdeye.so/defi/price?address=${mint}`, {
+                headers: {
+                  accept: "application/json",
+                  "x-chain": "solana",
+                  "X-API-KEY": process.env.BIRDEYE_API_KEY!,
+                },
+              }).then((r) => r.json())
+            )
+          )
+        : [];
+
       withPrices = tokens.map((t: any, i: number) => {
-        const result = priceResults[i];
-        if (result.status === "fulfilled" && result.value.data) {
-          const d = result.value.data;
-          return {
-            ...t,
-            name: d.name ?? t.mint.slice(0, 6),
-            symbol: d.symbol ?? "???",
-            logoURI: d.logoURI ?? null,
-            price: d.price ?? 0,
-            usdValue: (d.price ?? 0) * t.amount,
-          };
-        }
-        return { ...t, name: t.mint.slice(0, 6), symbol: "???", price: 0, usdValue: 0 };
+        const meta = metaResults[i]?.status === "fulfilled" ? metaResults[i].value : null;
+        const priceData = priceResults[i]?.status === "fulfilled" ? (priceResults[i] as any).value?.data : null;
+        const price = priceData?.value ?? 0;
+        return {
+          ...t,
+          name: meta?.name ?? t.mint.slice(0, 6),
+          symbol: meta?.symbol ?? "???",
+          logoURI: meta?.logoURI ?? null,
+          price,
+          usdValue: price * t.amount,
+        };
       });
     }
 
