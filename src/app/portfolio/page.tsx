@@ -61,19 +61,31 @@ export default function PortfolioPage() {
 
   // Detect Phantom wallet and fetch balance
   useEffect(() => {
+    if (!authenticated) return;
     const solana = (window as any).solana;
-    if (!solana?.publicKey) return;
-    const addr = solana.publicKey.toString();
-    setPhantomAddress(addr);
-    fetch(`/api/wallet/balance?address=${addr}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.solBalance !== undefined) {
-          setSolBalance(d.solBalance);
-          setSolPrice(d.solPrice);
-          setUsdValue(d.usdValue);
-        }
-      });
+    if (!solana) return;
+
+    const fetchBalance = (addr: string) => {
+      setPhantomAddress(addr);
+      fetch(`/api/wallet/balance?address=${addr}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.solBalance !== undefined) {
+            setSolBalance(d.solBalance);
+            setSolPrice(d.solPrice);
+            setUsdValue(d.usdValue);
+          }
+        });
+    };
+
+    if (solana.publicKey) {
+      fetchBalance(solana.publicKey.toString());
+    } else {
+      // Try silent reconnect (no popup)
+      solana.connect({ onlyIfTrusted: true })
+        .then((resp: any) => fetchBalance(resp.publicKey.toString()))
+        .catch(() => {}); // ignore if not previously approved
+    }
   }, [authenticated]);
 
   useEffect(() => {
