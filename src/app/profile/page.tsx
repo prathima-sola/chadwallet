@@ -17,7 +17,6 @@ export default function ProfilePage() {
   const email = user?.google?.email ?? user?.email?.address ?? null;
   const displayName = user?.google?.name ?? email?.split("@")[0] ?? "Anonymous";
 
-  // Load existing avatar
   useEffect(() => {
     if (!userId) return;
     supabase
@@ -40,7 +39,6 @@ export default function ProfilePage() {
     setSaved(false);
 
     try {
-      // Upload to R2
       const form = new FormData();
       form.append("file", file);
       form.append("userId", userId);
@@ -49,7 +47,6 @@ export default function ProfilePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Save URL to Supabase profiles table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase.from("profiles") as any).upsert(
         { user_id: userId, avatar_url: data.url, display_name: displayName },
@@ -77,13 +74,14 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 480, margin: "48px auto", padding: "0 20px" }}>
-      {/* Lightbox preview */}
+
+      {/* Lightbox */}
       {preview && avatarUrl && (
         <div
           onClick={() => setPreview(false)}
           style={{
-            position: "fixed", inset: 0, zIndex: 100,
-            backgroundColor: "rgba(0,0,0,0.85)",
+            position: "fixed", inset: 0, zIndex: 9999,
+            backgroundColor: "rgba(0,0,0,0.9)",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "zoom-out",
           }}
@@ -95,6 +93,7 @@ export default function ProfilePage() {
           />
         </div>
       )}
+
       <h1 style={{ fontSize: 18, fontWeight: 500, color: "#fff", marginBottom: 32 }}>
         Profile
       </h1>
@@ -102,6 +101,7 @@ export default function ProfilePage() {
       {/* Avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 32 }}>
         <div
+          onClick={() => { if (avatarUrl) setPreview(true); }}
           style={{
             width: 72,
             height: 72,
@@ -115,7 +115,6 @@ export default function ProfilePage() {
             flexShrink: 0,
             cursor: avatarUrl ? "zoom-in" : "default",
           }}
-          onClick={() => avatarUrl && setPreview(true)}
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
