@@ -1,12 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
 export default function DepositPage() {
-  const { authenticated, ready, login, user } = usePrivy();
-  const wallet = user?.wallet?.address ?? null;
+  const { authenticated, ready, login } = usePrivy();
+  const [wallet, setWallet] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    // Try to get Phantom wallet address
+    const solana = (window as any).solana;
+    if (solana?.publicKey) {
+      setWallet(solana.publicKey.toString());
+    } else if (solana) {
+      solana.connect({ onlyIfTrusted: true })
+        .then((resp: any) => setWallet(resp.publicKey.toString()))
+        .catch(() => {});
+    }
+  }, [authenticated]);
+
+  const connectPhantom = async () => {
+    const solana = (window as any).solana;
+    if (!solana) { alert("Install Phantom wallet first"); return; }
+    const resp = await solana.connect();
+    setWallet(resp.publicKey.toString());
+  };
 
   const copy = () => {
     if (!wallet) return;
@@ -18,15 +37,23 @@ export default function DepositPage() {
 
   if (!ready) return null;
 
-  if (!authenticated || !wallet) {
+  if (!authenticated) {
     return (
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
         <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Connect your wallet to get your deposit address</div>
-        <button
-          onClick={login}
-          style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}
-        >
+        <button onClick={login} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}>
           Connect wallet
+        </button>
+      </div>
+    );
+  }
+
+  if (!wallet) {
+    return (
+      <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Connect Phantom to see your deposit address</div>
+        <button onClick={connectPhantom} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}>
+          Connect Phantom
         </button>
       </div>
     );
@@ -41,37 +68,25 @@ export default function DepositPage() {
           Deposit SOL
         </div>
 
-        {/* QR code */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
           <div style={{ padding: 16, backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 12 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={qrUrl}
-              alt="Wallet QR code"
-              width={180}
-              height={180}
-              style={{ display: "block", borderRadius: 4 }}
-            />
+            <img src={qrUrl} alt="Wallet QR code" width={180} height={180} style={{ display: "block", borderRadius: 4 }} />
           </div>
         </div>
 
-        {/* Network badge */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, backgroundColor: "rgba(0,217,126,0.1)", border: "1px solid rgba(0,217,126,0.2)" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "var(--cw-accent)" }} />
-            <span style={{ fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>Solana</span>
+            <span style={{ fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>Solana · Phantom Wallet</span>
           </div>
         </div>
 
-        {/* Address + copy */}
         <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           <div style={{ flex: 1, fontSize: 12, fontFamily: "var(--font-mono)", color: "#fff", wordBreak: "break-all" }}>
             {wallet}
           </div>
-          <button
-            onClick={copy}
-            style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--cw-border)", backgroundColor: copied ? "rgba(0,217,126,0.15)" : "transparent", color: copied ? "var(--cw-accent)" : "var(--cw-muted)", fontSize: 12, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}
-          >
+          <button onClick={copy} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 6, border: "1px solid var(--cw-border)", backgroundColor: copied ? "rgba(0,217,126,0.15)" : "transparent", color: copied ? "var(--cw-accent)" : "var(--cw-muted)", fontSize: 12, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap" }}>
             {copied ? "Copied!" : "Copy"}
           </button>
         </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTokenList, type BirdeyeToken } from "@/lib/birdeye";
 import TokenCard, { type Token } from "@/components/TokenCard";
+import TokenSearch from "@/components/TokenSearch";
 
 function toToken(t: BirdeyeToken): Token {
   return {
@@ -104,8 +105,9 @@ export default async function HomePage({
           {activeTab.label} memecoins
         </div>
 
-        {/* Filter tabs */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+        {/* Filter tabs + Search */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
+          <div style={{ display: "flex", gap: 4 }}>
           {TABS.map((t) => {
             const isActive = t.value === activeTab.value;
             return (
@@ -126,6 +128,8 @@ export default async function HomePage({
               </Link>
             );
           })}
+          </div>
+          <TokenSearch />
         </div>
 
         {error && (

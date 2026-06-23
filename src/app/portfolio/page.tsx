@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -57,6 +57,7 @@ export default function PortfolioPage() {
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [usdValue, setUsdValue] = useState<number | null>(null);
+  const [tokenHoldings, setTokenHoldings] = useState<any[]>([]);
   const wallet = user?.wallet?.address ?? phantomAddress ?? null;
 
   // Detect Phantom wallet and fetch balance
@@ -76,6 +77,9 @@ export default function PortfolioPage() {
             setUsdValue(d.usdValue);
           }
         });
+      fetch(`/api/wallet/tokens?address=${addr}`)
+        .then((r) => r.json())
+        .then((d) => { if (d.tokens) setTokenHoldings(d.tokens); });
     };
 
     if (solana.publicKey) {
@@ -197,6 +201,42 @@ export default function PortfolioPage() {
             {solBalance?.toFixed(4)} SOL
             {solPrice ? <span style={{ color: "var(--cw-dim)", marginLeft: 8 }}>@ ${solPrice.toFixed(2)}</span> : null}
           </div>
+        </div>
+      )}
+
+      {/* Token holdings */}
+      {tokenHoldings.length > 0 && (
+        <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 10, overflow: "hidden", marginBottom: 24 }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--cw-border)", fontSize: 12, fontWeight: 500, color: "var(--cw-muted)" }}>
+            Token holdings
+          </div>
+          {tokenHoldings.map((t) => (
+            <Link key={t.mint} href={`/tokens/${t.mint}`} style={{ textDecoration: "none" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.03)", cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {t.logoURI ? (
+                    <img src={t.logoURI} alt={t.symbol} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "rgba(0,217,126,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "var(--cw-accent)" }}>
+                      {t.symbol?.[0] ?? "?"}
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{t.symbol}</div>
+                    <div style={{ fontSize: 11, color: "var(--cw-dim)" }}>{t.amount >= 1_000_000 ? `${(t.amount / 1_000_000).toFixed(2)}M` : t.amount >= 1_000 ? `${(t.amount / 1_000).toFixed(2)}K` : t.amount.toFixed(4)}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 13, color: "#fff", fontFamily: "var(--font-mono)" }}>
+                    {t.usdValue > 0 ? `$${t.usdValue.toFixed(2)}` : "—"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--cw-dim)", fontFamily: "var(--font-mono)" }}>
+                    {t.price > 0 ? `$${t.price < 0.01 ? t.price.toFixed(8) : t.price.toFixed(4)}` : ""}
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
       )}
 

@@ -11,6 +11,7 @@ const RPC = process.env.NEXT_PUBLIC_ALCHEMY_RPC!;
 interface TradePanelProps {
   tokenAddress: string;
   tokenSymbol: string;
+  tokenName: string;
   tokenDecimals: number;
   price: number;
 }
@@ -37,6 +38,7 @@ function formatOut(raw: string, decimals: number): string {
 export default function TradePanel({
   tokenAddress,
   tokenSymbol,
+  tokenName,
   tokenDecimals,
   price,
 }: TradePanelProps) {
@@ -71,6 +73,7 @@ export default function TradePanel({
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("0.1");
+  const [slippage, setSlippage] = useState(50); // bps: 50 = 0.5%
   const [quote, setQuote] = useState<JupiterQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [status, setStatus] = useState<SwapStatus>("idle");
@@ -92,7 +95,7 @@ export default function TradePanel({
     setQuoteError(null);
     try {
       const lamports = Math.floor(parsed * Math.pow(10, inDecimals));
-      const url = `/api/jupiter/quote?inputMint=${inMint}&outputMint=${outMint}&amount=${lamports}&slippageBps=50`;
+      const url = `/api/jupiter/quote?inputMint=${inMint}&outputMint=${outMint}&amount=${lamports}&slippageBps=${slippage}`;
       console.log("[Jupiter quote]", url);
       const res = await fetch(url);
       const data = await res.json();
@@ -171,7 +174,7 @@ export default function TradePanel({
           user_wallet: wallet,
           token_mint: tokenAddress,
           token_symbol: tokenSymbol,
-          token_name: tokenSymbol,
+          token_name: tokenName,
           side,
           sol_amount: solAmount,
           token_amount: tokenAmount,
@@ -303,8 +306,29 @@ export default function TradePanel({
         </button>
       )}
 
+      {/* Slippage selector */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 11, color: "var(--cw-dim)" }}>Slippage</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[{ label: "0.5%", bps: 50 }, { label: "1%", bps: 100 }, { label: "2%", bps: 200 }].map((s) => (
+            <button
+              key={s.bps}
+              onClick={() => setSlippage(s.bps)}
+              style={{
+                padding: "3px 8px", fontSize: 11, borderRadius: 4, cursor: "pointer",
+                border: `1px solid ${slippage === s.bps ? "rgba(255,255,255,0.3)" : "var(--cw-border)"}`,
+                backgroundColor: slippage === s.bps ? "rgba(255,255,255,0.08)" : "transparent",
+                color: slippage === s.bps ? "#fff" : "var(--cw-dim)",
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div style={{ fontSize: 11, color: "var(--cw-dim)", textAlign: "center" }}>
-        0.5% slippage · Powered by Jupiter
+        Powered by Jupiter
       </div>
     </div>
   );

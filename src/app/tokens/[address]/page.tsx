@@ -158,6 +158,7 @@ export default async function TokenPage({
           <TradePanel
             tokenAddress={address}
             tokenSymbol={overview.symbol}
+            tokenName={overview.name}
             tokenDecimals={overview.decimals}
             price={overview.price ?? 0}
           />
