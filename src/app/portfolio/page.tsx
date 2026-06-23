@@ -54,6 +54,27 @@ export default function PortfolioPage() {
   const wallet = user?.wallet?.address ?? null;
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
+  const [phantomAddress, setPhantomAddress] = useState<string | null>(null);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [solPrice, setSolPrice] = useState<number | null>(null);
+  const [usdValue, setUsdValue] = useState<number | null>(null);
+
+  // Detect Phantom wallet and fetch balance
+  useEffect(() => {
+    const solana = (window as any).solana;
+    if (!solana?.publicKey) return;
+    const addr = solana.publicKey.toString();
+    setPhantomAddress(addr);
+    fetch(`/api/wallet/balance?address=${addr}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.solBalance !== undefined) {
+          setSolBalance(d.solBalance);
+          setSolPrice(d.solPrice);
+          setUsdValue(d.usdValue);
+        }
+      });
+  }, [authenticated]);
 
   useEffect(() => {
     if (!wallet) return;
@@ -122,6 +143,20 @@ export default function PortfolioPage() {
           </div>
         </div>
       </div>
+
+      {/* Net worth */}
+      {usdValue !== null && (
+        <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+          <div style={{ fontSize: 11, color: "var(--cw-dim)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Net worth</div>
+          <div style={{ fontSize: 32, fontWeight: 600, fontFamily: "var(--font-mono)", color: "#fff", marginBottom: 4 }}>
+            ${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--cw-muted)", fontFamily: "var(--font-mono)" }}>
+            {solBalance?.toFixed(4)} SOL
+            {solPrice ? <span style={{ color: "var(--cw-dim)", marginLeft: 8 }}>@ ${solPrice.toFixed(2)}</span> : null}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 32 }}>
