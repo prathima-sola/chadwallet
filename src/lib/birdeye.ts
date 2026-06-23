@@ -78,7 +78,6 @@ export async function getTokenList({
     limit: String(fetchLimit),
     offset: String(offset),
     min_liquidity: String(minLiquidity),
-    tag: "meme",
   });
 
   const res = await birdeyeFetch(`${BASE_URL}/defi/tokenlist?${params}`, {
