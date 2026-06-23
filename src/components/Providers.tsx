@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { AvatarProvider } from "@/lib/avatar-context";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +20,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      {children}
+      <AvatarProvider>{children}</AvatarProvider>
     </PrivyProvider>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAvatar } from "@/lib/avatar-context";
 
 export default function ProfilePage() {
   const { user, ready, authenticated } = usePrivy();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const { avatarUrl, setAvatarUrl } = useAvatar();
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,19 +17,6 @@ export default function ProfilePage() {
   const userId = user?.id;
   const email = user?.google?.email ?? user?.email?.address ?? null;
   const displayName = user?.google?.name ?? email?.split("@")[0] ?? "Anonymous";
-
-  useEffect(() => {
-    if (!userId) return;
-    supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("user_id", userId)
-      .single()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then(({ data }: any) => {
-        if (data?.avatar_url) setAvatarUrl(data.avatar_url + "?t=" + Date.now());
-      });
-  }, [userId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,7 +41,8 @@ export default function ProfilePage() {
         { onConflict: "user_id" }
       );
 
-      setAvatarUrl(data.url + "?t=" + Date.now());
+      // Update globally — navbar + profile both refresh
+      setAvatarUrl(data.url);
       setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

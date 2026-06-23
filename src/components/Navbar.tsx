@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { useAvatar } from "@/lib/avatar-context";
 
 const NAV_LINKS = [
   { href: "/", label: "Discover" },
@@ -16,23 +16,9 @@ export default function Navbar() {
   const pathname = usePathname();
   const { login, logout, ready, authenticated, user } = usePrivy();
   const [mounted, setMounted] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const { avatarUrl } = useAvatar();
 
   useEffect(() => setMounted(true), []);
-
-  // Load avatar when user logs in
-  useEffect(() => {
-    if (!user?.id) { setAvatarUrl(null); return; }
-    supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("user_id", user.id)
-      .single()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then(({ data }: any) => {
-        if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-      });
-  }, [user?.id]);
 
   const displayName =
     user?.google?.name ??
