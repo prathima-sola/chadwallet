@@ -156,6 +156,36 @@ export default function PortfolioPage() {
         </div>
       </div>
 
+      {/* Connect Phantom prompt */}
+      {usdValue === null && (
+        <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 14, color: "#fff", marginBottom: 4 }}>Connect Phantom to see your balance</div>
+            <div style={{ fontSize: 12, color: "var(--cw-dim)" }}>Shows your live SOL balance and net worth</div>
+          </div>
+          <button
+            onClick={async () => {
+              const solana = (window as any).solana;
+              if (!solana) { alert("Phantom not installed"); return; }
+              try {
+                const resp = await solana.connect();
+                const addr = resp.publicKey.toString();
+                setPhantomAddress(addr);
+                const d = await fetch(`/api/wallet/balance?address=${addr}`).then(r => r.json());
+                if (d.solBalance !== undefined) {
+                  setSolBalance(d.solBalance);
+                  setSolPrice(d.solPrice);
+                  setUsdValue(d.usdValue);
+                }
+              } catch {}
+            }}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}
+          >
+            Connect Phantom
+          </button>
+        </div>
+      )}
+
       {/* Net worth */}
       {usdValue !== null && (
         <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
