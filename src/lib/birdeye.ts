@@ -45,6 +45,18 @@ export type SortType = "desc" | "asc";
 
 // ─── Token list ───────────────────────────────────────────────────────────────
 
+// Known non-meme tokens to exclude
+const EXCLUDE_ADDRESSES = new Set([
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
+  "So11111111111111111111111111111111111111112",      // wSOL
+  "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",  // wETH
+  "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E",  // wBTC
+  "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",  // mSOL
+  "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj", // stSOL
+  "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", // BONK (large cap, not memecoin for our purposes? Actually keep BONK)
+]);
+
 export async function getTokenList({
   sortBy = "v24hUSD",
   sortType = "desc",
@@ -58,17 +70,20 @@ export async function getTokenList({
   offset?: number;
   minLiquidity?: number;
 } = {}): Promise<BirdeyeToken[]> {
+  // Fetch more to account for filtering
+  const fetchLimit = Math.min(limit * 3, 100);
   const params = new URLSearchParams({
     sort_by: sortBy,
     sort_type: sortType,
-    limit: String(limit),
+    limit: String(fetchLimit),
     offset: String(offset),
     min_liquidity: String(minLiquidity),
+    tag: "meme",
   });
 
   const res = await birdeyeFetch(`${BASE_URL}/defi/tokenlist?${params}`, {
     headers: headers(),
-    next: { revalidate: 30 }, // cache for 30 seconds
+    next: { revalidate: 30 },
   });
 
   if (!res.ok) {
@@ -76,7 +91,12 @@ export async function getTokenList({
   }
 
   const json = await res.json();
-  return json.data?.tokens ?? [];
+  const tokens: BirdeyeToken[] = json.data?.tokens ?? [];
+
+  // Filter out stablecoins and major non-meme tokens
+  return tokens
+    .filter((t) => !EXCLUDE_ADDRESSES.has(t.address))
+    .slice(0, limit);
 }
 
 // ─── Token overview (single token) ───────────────────────────────────────────

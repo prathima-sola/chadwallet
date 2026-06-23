@@ -101,7 +101,7 @@ export default async function HomePage({
             marginBottom: 10,
           }}
         >
-          {activeTab.label} tokens
+          {activeTab.label} memecoins
         </div>
 
         {/* Filter tabs */}
