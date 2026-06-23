@@ -10,6 +10,7 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const userId = user?.id;
@@ -76,6 +77,24 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 480, margin: "48px auto", padding: "0 20px" }}>
+      {/* Lightbox preview */}
+      {preview && avatarUrl && (
+        <div
+          onClick={() => setPreview(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "zoom-out",
+          }}
+        >
+          <img
+            src={avatarUrl}
+            alt="Profile photo"
+            style={{ maxWidth: "80vw", maxHeight: "80vh", borderRadius: 12, objectFit: "contain" }}
+          />
+        </div>
+      )}
       <h1 style={{ fontSize: 18, fontWeight: 500, color: "#fff", marginBottom: 32 }}>
         Profile
       </h1>
@@ -94,9 +113,9 @@ export default function ProfilePage() {
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            cursor: "pointer",
+            cursor: avatarUrl ? "zoom-in" : "default",
           }}
-          onClick={() => fileRef.current?.click()}
+          onClick={() => avatarUrl && setPreview(true)}
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
