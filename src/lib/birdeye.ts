@@ -70,12 +70,10 @@ export async function getTokenList({
   offset?: number;
   minLiquidity?: number;
 } = {}): Promise<BirdeyeToken[]> {
-  // Fetch more to account for filtering
-  const fetchLimit = Math.min(limit * 3, 100);
   const params = new URLSearchParams({
     sort_by: sortBy,
     sort_type: sortType,
-    limit: String(fetchLimit),
+    limit: String(limit),
     offset: String(offset),
     min_liquidity: String(minLiquidity),
   });
