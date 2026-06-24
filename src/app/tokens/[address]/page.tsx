@@ -5,12 +5,7 @@ import TradePanel from "./TradePanel";
 import LiveTrades from "./LiveTrades";
 import AIAnalysis from "./AIAnalysis";
 import TopHolders from "./TopHolders";
-
-function formatPrice(price: number): string {
-  if (price >= 1) return `$${price.toFixed(2)}`;
-  if (price >= 0.01) return `$${price.toFixed(4)}`;
-  return `$${price.toFixed(8)}`;
-}
+import LivePrice from "./LivePrice";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
@@ -37,8 +32,6 @@ export default async function TokenPage({
 
   const initialBars = barsResult.status === "fulfilled" ? barsResult.value : [];
   const holders = holdersResult.status === "fulfilled" ? holdersResult.value : [];
-
-  const isPositive = (overview.priceChange24hPercent ?? 0) >= 0;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -104,29 +97,12 @@ export default async function TokenPage({
           </div>
         </div>
 
-        {/* Price */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <span
-            style={{
-              fontSize: 22,
-              fontWeight: 500,
-              fontFamily: "var(--font-mono)",
-              color: "#fff",
-            }}
-          >
-            {formatPrice(overview.price ?? 0)}
-          </span>
-          <span
-            style={{
-              fontSize: 14,
-              fontFamily: "var(--font-mono)",
-              color: isPositive ? "var(--cw-green)" : "var(--cw-red)",
-            }}
-          >
-            {isPositive ? "+" : ""}
-            {(overview.priceChange24hPercent ?? 0).toFixed(2)}%
-          </span>
-        </div>
+        {/* Price — live-updating */}
+        <LivePrice
+          address={address}
+          initialPrice={overview.price ?? 0}
+          initialChange24h={overview.priceChange24hPercent ?? 0}
+        />
 
         {/* Stats pills */}
         <div style={{ display: "flex", gap: 16, marginLeft: "auto", flexWrap: "wrap" }}>
