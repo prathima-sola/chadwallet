@@ -132,7 +132,12 @@ export async function getTokenOverview(address: string): Promise<BirdeyeTokenOve
   }
 
   const json = await res.json();
-  return json.data;
+  const d = json.data ?? {};
+  // BirdEye returns realMc (circulating) and mc (fully diluted); prefer realMc when mc is 0
+  if (!d.mc || d.mc === 0) {
+    d.mc = d.realMc ?? 0;
+  }
+  return d;
 }
 
 // ─── OHLCV price history (for TradingView chart) ─────────────────────────────
