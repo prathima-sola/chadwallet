@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getTokenOverview, getOHLCV, getTokenTransactions, getTokenHolders } from "@/lib/birdeye";
+import { getTokenOverview, getOHLCV, getTokenHolders } from "@/lib/birdeye";
 import TokenChart from "./TokenChart";
 import TradePanel from "./TradePanel";
 import LiveTrades from "./LiveTrades";
@@ -30,14 +30,12 @@ export default async function TokenPage({
   // BirdEye free tier rate-limits parallel calls (429).
   const overview = await getTokenOverview(address);
 
-  const [barsResult, tradesResult, holdersResult] = await Promise.allSettled([
+  const [barsResult, holdersResult] = await Promise.allSettled([
     getOHLCV({ address, type: "15m", limit: 200 }),
-    getTokenTransactions(address, 30),
     getTokenHolders(address, 10),
   ]);
 
   const initialBars = barsResult.status === "fulfilled" ? barsResult.value : [];
-  const trades = tradesResult.status === "fulfilled" ? tradesResult.value : [];
   const holders = holdersResult.status === "fulfilled" ? holdersResult.value : [];
 
   const isPositive = (overview.priceChange24hPercent ?? 0) >= 0;
@@ -180,7 +178,7 @@ export default async function TokenPage({
           >
             Recent trades
           </div>
-          <LiveTrades trades={trades} tokenSymbol={overview.symbol} />
+          <LiveTrades address={address} tokenSymbol={overview.symbol} />
         </div>
 
         {/* AI Analysis + Top Holders */}
@@ -196,8 +194,8 @@ export default async function TokenPage({
               marketCap: overview.mc ?? 0,
               liquidity: overview.liquidity ?? 0,
               holders: overview.holder ?? 0,
-              recentBuys: trades.filter((t) => t.side === "buy").length,
-              recentSells: trades.filter((t) => t.side === "sell").length,
+              recentBuys: 0,
+              recentSells: 0,
               priceHigh24h: (overview.price ?? 0) * (1 + Math.abs(overview.priceChange24hPercent ?? 0) / 100),
               priceLow24h: overview.price ?? 0,
               barCount: initialBars.length,
