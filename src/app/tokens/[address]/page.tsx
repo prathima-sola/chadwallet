@@ -33,6 +33,11 @@ export default async function TokenPage({
   const initialBars = barsResult.status === "fulfilled" ? barsResult.value : [];
   const holders = holdersResult.status === "fulfilled" ? holdersResult.value : [];
 
+  // BirdEye sometimes returns mc=0; fall back to supply × price
+  const mc = (overview.mc && overview.mc > 0)
+    ? overview.mc
+    : (overview.supply ?? 0) * (overview.price ?? 0);
+
   return (
     <div style={{ minHeight: "100vh" }}>
       {/* Token header */}
@@ -107,7 +112,7 @@ export default async function TokenPage({
         {/* Stats pills */}
         <div style={{ display: "flex", gap: 16, marginLeft: "auto", flexWrap: "wrap" }}>
           {[
-            { label: "Mkt cap", value: formatCompact(overview.mc ?? 0) },
+            { label: "Mkt cap", value: formatCompact(mc) },
             { label: "Vol 24h", value: formatCompact(overview.v24hUSD ?? 0) },
             { label: "Liquidity", value: formatCompact(overview.liquidity ?? 0) },
             { label: "Holders", value: (overview.holder ?? 0).toLocaleString() },
@@ -167,7 +172,7 @@ export default async function TokenPage({
               price: overview.price ?? 0,
               change24h: overview.priceChange24hPercent ?? 0,
               volume24h: overview.v24hUSD ?? 0,
-              marketCap: overview.mc ?? 0,
+              marketCap: mc,
               liquidity: overview.liquidity ?? 0,
               holders: overview.holder ?? 0,
               recentBuys: 0,
