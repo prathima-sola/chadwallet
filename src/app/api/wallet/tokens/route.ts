@@ -60,26 +60,25 @@ export async function GET(req: NextRequest) {
         )
       );
 
-      // Fetch prices from BirdEye
-      const priceResults = await Promise.allSettled(
-        mints.map((mint: string) =>
-          fetch(`https://public-api.birdeye.so/defi/price?address=${mint}`, {
-            headers: {
-              accept: "application/json",
-              "x-chain": "solana",
-              "X-API-KEY": process.env.BIRDEYE_API_KEY ?? "",
-            },
-          }).then((r) => r.json())
-        )
-      );
+      // Fetch prices via BirdEye multi_price (one call, same key used by discover page)
+      const mintList = mints.join(",");
+      const birdeyePriceRes = await fetch(
+        `https://public-api.birdeye.so/defi/multi_price?list_address=${mintList}`,
+        {
+          headers: {
+            accept: "application/json",
+            "x-chain": "solana",
+            "X-API-KEY": process.env.BIRDEYE_API_KEY ?? "",
+          },
+        }
+      ).then((r) => r.json()).catch(() => ({ data: {} }));
 
       withPrices = tokens.map((t: any, i: number) => {
         const asset = metaResults[i].status === "fulfilled" ? metaResults[i].value?.result : null;
-        const name = asset?.content?.metadata?.name ?? asset?.content?.json_uri ?? t.mint.slice(0, 6);
+        const name = asset?.content?.metadata?.name ?? t.mint.slice(0, 6);
         const symbol = asset?.content?.metadata?.symbol ?? "???";
         const logoURI = asset?.content?.links?.image ?? asset?.content?.files?.[0]?.uri ?? null;
-        const priceVal = priceResults[i].status === "fulfilled" ? (priceResults[i] as any).value?.data?.value : 0;
-        const price = priceVal ?? 0;
+        const price = birdeyePriceRes.data?.[t.mint]?.value ?? 0;
         return { ...t, name, symbol, logoURI, price, usdValue: price * t.amount };
       });
     }
