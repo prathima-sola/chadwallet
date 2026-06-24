@@ -33,10 +33,24 @@ export default async function TokenPage({
   const initialBars = barsResult.status === "fulfilled" ? barsResult.value : [];
   const holders = holdersResult.status === "fulfilled" ? holdersResult.value : [];
 
-  // BirdEye sometimes returns mc=0; fall back to supply × price
-  const mc = (overview.mc && overview.mc > 0)
+  // BirdEye free tier often returns mc=0. Try supply×price, then CoinGecko.
+  let mc = (overview.mc && overview.mc > 0)
     ? overview.mc
     : (overview.supply ?? 0) * (overview.price ?? 0);
+
+  if (!mc || mc === 0) {
+    try {
+      const cgRes = await fetch(
+        `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${address}&vs_currencies=usd&include_market_cap=true`,
+        { next: { revalidate: 60 } }
+      );
+      if (cgRes.ok) {
+        const cgJson = await cgRes.json();
+        const entry = cgJson[address.toLowerCase()] ?? cgJson[address];
+        mc = entry?.usd_market_cap ?? 0;
+      }
+    } catch { /* ignore */ }
+  }
 
   return (
     <div style={{ minHeight: "100vh" }}>
