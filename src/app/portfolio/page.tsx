@@ -59,6 +59,7 @@ export default function PortfolioPage() {
   const [usdValue, setUsdValue] = useState<number | null>(null);
   const [tokenHoldings, setTokenHoldings] = useState<any[]>([]);
   const wallet = user?.wallet?.address ?? phantomAddress ?? null;
+  const totalNetWorth = (usdValue ?? 0) + tokenHoldings.reduce((s, t) => s + (t.usdValue ?? 0), 0);
 
   // Detect Phantom wallet and fetch balance
   useEffect(() => {
@@ -195,7 +196,7 @@ export default function PortfolioPage() {
         <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
           <div style={{ fontSize: 11, color: "var(--cw-dim)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Net worth</div>
           <div style={{ fontSize: 32, fontWeight: 600, fontFamily: "var(--font-mono)", color: "#fff", marginBottom: 4 }}>
-            ${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${totalNetWorth.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: 13, color: "var(--cw-muted)", fontFamily: "var(--font-mono)" }}>
             {solBalance?.toFixed(4)} SOL
