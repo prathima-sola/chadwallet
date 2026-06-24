@@ -268,19 +268,41 @@ export default function TradePanel({
       </div>
 
       {/* Tx feedback */}
-      {status === "done" && txSig && (
-        <div style={{ backgroundColor: "rgba(0,217,126,0.08)", border: "1px solid rgba(0,217,126,0.2)", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap confirmed</div>
+      {status === "confirming" && txSig && (
+        <div style={{ backgroundColor: "rgba(0,217,126,0.05)", border: "1px solid rgba(0,217,126,0.15)", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap submitted ✓</div>
+          <div style={{ fontSize: 11, color: "var(--cw-dim)", marginBottom: 6 }}>Waiting for on-chain confirmation...</div>
           <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize: 11, color: "var(--cw-muted)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
-            {txSig.slice(0, 16)}...{txSig.slice(-8)} ↗
+            style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
+            View on Solscan ↗
           </a>
         </div>
       )}
 
-      {status === "error" && error && (
+      {status === "done" && txSig && (
+        <div style={{ backgroundColor: "rgba(0,217,126,0.08)", border: "1px solid rgba(0,217,126,0.2)", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap confirmed ✓</div>
+          <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
+            View on Solscan ↗
+          </a>
+        </div>
+      )}
+
+      {status === "error" && error && !txSig && (
         <div style={{ backgroundColor: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.2)", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--cw-red)" }}>
           {error}
+        </div>
+      )}
+
+      {status === "error" && txSig && (
+        <div style={{ backgroundColor: "rgba(0,217,126,0.05)", border: "1px solid rgba(0,217,126,0.15)", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap submitted ✓</div>
+          <div style={{ fontSize: 11, color: "var(--cw-dim)", marginBottom: 6 }}>Transaction sent — verify on Solscan.</div>
+          <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
+            View on Solscan ↗
+          </a>
         </div>
       )}
 
@@ -305,6 +327,7 @@ export default function TradePanel({
           {status === "swapping" ? "Signing..."
             : status === "confirming" ? "Confirming on-chain..."
             : status === "done" ? "Swap again"
+            : (status === "error" && txSig) ? "Swap again"
             : status === "error" ? "Try again"
             : `${side === "buy" ? "Buy" : "Sell"} ${tokenSymbol}`}
         </button>
