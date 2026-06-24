@@ -25,7 +25,7 @@ async function birdeyeFetch(
   return res;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 
 export interface BirdeyeToken {
   address: string;
@@ -43,19 +43,47 @@ export interface BirdeyeToken {
 export type SortBy = "v24hUSD" | "v24hChangePercent" | "mc" | "liquidity";
 export type SortType = "desc" | "asc";
 
-// ─── Token list ───────────────────────────────────────────────────────────────
+// Token list
 
-// Known non-meme tokens to exclude
-const EXCLUDE_ADDRESSES = new Set([
-  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
-  "So11111111111111111111111111111111111111112",      // wSOL
-  "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",  // wETH
-  "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E",  // wBTC
-  "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",  // mSOL
-  "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj", // stSOL
-  "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", // BONK (large cap, not memecoin for our purposes? Actually keep BONK)
-]);
+const MEME_SORT_BY: Record<SortBy, string> = {
+  v24hUSD: "volume_24h_usd",
+  v24hChangePercent: "price_change_24h_percent",
+  mc: "market_cap",
+  liquidity: "liquidity",
+};
+
+interface BirdeyeMemeToken {
+  address?: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
+  logo_uri?: string;
+  logoURI?: string;
+  price?: number;
+  market_cap?: number;
+  mc?: number;
+  volume_24h_usd?: number;
+  v24hUSD?: number;
+  price_change_24h_percent?: number;
+  v24hChangePercent?: number;
+  liquidity?: number;
+}
+
+function normalizeToken(t: BirdeyeMemeToken): BirdeyeToken | null {
+  if (!t.address || !t.symbol || !t.name) return null;
+  return {
+    address: t.address,
+    symbol: t.symbol,
+    name: t.name,
+    decimals: t.decimals ?? 0,
+    logoURI: t.logo_uri ?? t.logoURI,
+    price: t.price ?? 0,
+    mc: t.market_cap ?? t.mc ?? 0,
+    v24hUSD: t.volume_24h_usd ?? t.v24hUSD ?? 0,
+    v24hChangePercent: t.price_change_24h_percent ?? t.v24hChangePercent ?? 0,
+    liquidity: t.liquidity ?? 0,
+  };
+}
 
 export async function getTokenList({
   sortBy = "v24hUSD",
@@ -71,32 +99,32 @@ export async function getTokenList({
   minLiquidity?: number;
 } = {}): Promise<BirdeyeToken[]> {
   const params = new URLSearchParams({
-    sort_by: sortBy,
+    sort_by: MEME_SORT_BY[sortBy],
     sort_type: sortType,
     limit: String(limit),
     offset: String(offset),
     min_liquidity: String(minLiquidity),
   });
 
-  const res = await birdeyeFetch(`${BASE_URL}/defi/tokenlist?${params}`, {
+  const res = await birdeyeFetch(`${BASE_URL}/defi/v3/token/meme/list?${params}`, {
     headers: headers(),
     next: { revalidate: 30 },
   });
 
   if (!res.ok) {
-    throw new Error(`BirdEye tokenlist error: ${res.status} ${res.statusText}`);
+    throw new Error(`BirdEye meme list error: ${res.status} ${res.statusText}`);
   }
 
   const json = await res.json();
-  const tokens: BirdeyeToken[] = json.data?.tokens ?? [];
+  const tokens: BirdeyeMemeToken[] = json.data?.items ?? [];
 
-  // Filter out stablecoins and major non-meme tokens
   return tokens
-    .filter((t) => !EXCLUDE_ADDRESSES.has(t.address))
+    .map(normalizeToken)
+    .filter((t): t is BirdeyeToken => t !== null)
     .slice(0, limit);
 }
 
-// ─── Token overview (single token) ───────────────────────────────────────────
+// Token overview (single token)
 
 export interface BirdeyeTokenOverview {
   address: string;
@@ -140,7 +168,7 @@ export async function getTokenOverview(address: string): Promise<BirdeyeTokenOve
   return d;
 }
 
-// ─── OHLCV price history (for TradingView chart) ─────────────────────────────
+// OHLCV price history (for TradingView chart)
 
 // BirdEye returns abbreviated field names: o/h/l/c not open/high/low/close
 export interface OHLCVBar {
@@ -191,14 +219,26 @@ export async function getOHLCV({
   return json.data?.items ?? [];
 }
 
-// ─── Top token holders ───────────────────────────────────────────────────────
+// Top token holders
 
 export interface TokenHolder {
   address: string;
-  amount: number;
+  tokenAccount?: string;
+  amount: string;
   decimals: number;
   uiAmount: number;
-  percentage: number;
+  percentage?: number;
+}
+
+interface BirdeyeTokenHolder {
+  amount?: string | number;
+  decimals?: number;
+  owner?: string;
+  address?: string;
+  token_account?: string;
+  ui_amount?: number;
+  uiAmount?: number;
+  percentage?: number;
 }
 
 export async function getTokenHolders(
@@ -209,19 +249,35 @@ export async function getTokenHolders(
     address,
     offset: "0",
     limit: String(limit),
+    ui_amount_mode: "scaled",
   });
 
-  const res = await birdeyeFetch(`${BASE_URL}/defi/token_holder?${params}`, {
+  const res = await birdeyeFetch(`${BASE_URL}/defi/v3/token/holder?${params}`, {
     headers: headers(),
     next: { revalidate: 60 },
   });
 
   if (!res.ok) return [];
   const json = await res.json();
-  return json.data?.items ?? [];
+  const items: BirdeyeTokenHolder[] = json.data?.items ?? [];
+
+  const holders: TokenHolder[] = [];
+  for (const h of items) {
+    const holderAddress = h.owner ?? h.address;
+    if (!holderAddress) continue;
+    holders.push({
+      ...(h.token_account ? { tokenAccount: h.token_account } : {}),
+      address: holderAddress,
+      amount: String(h.amount ?? "0"),
+      decimals: h.decimals ?? 0,
+      uiAmount: h.ui_amount ?? h.uiAmount ?? 0,
+      percentage: h.percentage,
+    });
+  }
+  return holders;
 }
 
-// ─── Token transactions (recent swaps) ───────────────────────────────────────
+// Token transactions (recent swaps)
 
 export interface TokenTransaction {
   txHash: string;
@@ -234,6 +290,67 @@ export interface TokenTransaction {
   volumeUSD: number;
 }
 
+interface BirdeyeTxLeg {
+  symbol?: string;
+  address?: string;
+  ui_amount?: number;
+  uiAmount?: number;
+}
+
+interface BirdeyeTokenTx {
+  tx_hash?: string;
+  txHash?: string;
+  block_unix_time?: number;
+  blockUnixTime?: number;
+  owner?: string;
+  source?: string;
+  signers?: string[];
+  tx_type?: string;
+  side?: string;
+  from?: BirdeyeTxLeg;
+  to?: BirdeyeTxLeg;
+  volume_usd?: number;
+  volumeUSD?: number;
+}
+
+function normalizeTxLeg(leg?: BirdeyeTxLeg): TokenTransaction["from"] {
+  return {
+    symbol: leg?.symbol ?? "",
+    address: leg?.address ?? "",
+    uiAmount: leg?.ui_amount ?? leg?.uiAmount ?? 0,
+  };
+}
+
+function normalizeTokenTransaction(tx: BirdeyeTokenTx, tokenAddress: string): TokenTransaction | null {
+  const txHash = tx.tx_hash ?? tx.txHash;
+  const blockUnixTime = tx.block_unix_time ?? tx.blockUnixTime;
+  const from = normalizeTxLeg(tx.from);
+  const to = normalizeTxLeg(tx.to);
+  const normalizedTokenAddress = tokenAddress.toLowerCase();
+  const explicitSide = tx.side === "buy" || tx.side === "sell" ? tx.side : null;
+  const inferredSide = to.address.toLowerCase() === normalizedTokenAddress
+    ? "buy"
+    : from.address.toLowerCase() === normalizedTokenAddress
+    ? "sell"
+    : null;
+  const side = explicitSide ?? inferredSide;
+
+  if (!txHash || !blockUnixTime || !side) {
+    return null;
+  }
+
+  return {
+    txHash,
+    blockUnixTime,
+    owner: tx.owner ?? tx.signers?.[0] ?? tx.source ?? "unknown",
+    source: tx.source,
+    side,
+    from,
+    to,
+    volumeUSD: tx.volume_usd ?? tx.volumeUSD ?? 0,
+  };
+}
+
 export async function getTokenTransactions(
   address: string,
   limit = 20
@@ -241,11 +358,13 @@ export async function getTokenTransactions(
   const params = new URLSearchParams({
     address,
     tx_type: "swap",
+    sort_by: "block_unix_time",
     sort_type: "desc",
     limit: String(limit),
+    ui_amount_mode: "scaled",
   });
 
-  const res = await birdeyeFetch(`${BASE_URL}/defi/txs/token?${params}`, {
+  const res = await birdeyeFetch(`${BASE_URL}/defi/v3/token/txs?${params}`, {
     headers: headers(),
     next: { revalidate: 10 },
   });
@@ -255,5 +374,8 @@ export async function getTokenTransactions(
   }
 
   const json = await res.json();
-  return json.data?.items ?? [];
+  const items: BirdeyeTokenTx[] = json.data?.items ?? [];
+  return items
+    .map((tx) => normalizeTokenTransaction(tx, address))
+    .filter((tx): tx is TokenTransaction => tx !== null);
 }

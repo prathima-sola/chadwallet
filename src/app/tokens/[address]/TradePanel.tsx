@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { atomicToDecimalString, decimalToAtomic, decimalToNumber } from "@/lib/amounts";
+import { getPhantomProvider } from "@/lib/phantom";
+import { linkedSolanaAddresses } from "@/lib/privy-client";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const SOL_DECIMALS = 9;
-const RPC = process.env.NEXT_PUBLIC_ALCHEMY_RPC!;
+const RPC =
+  process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_RPC_URL ??
+  "https://api.mainnet-beta.solana.com";
 
 interface TradePanelProps {
   tokenAddress: string;
@@ -25,14 +30,24 @@ interface JupiterQuote {
   inAmount: string;
 }
 
+interface JupiterSwapResponse {
+  swapTransaction?: unknown;
+  lastValidBlockHeight?: unknown;
+  error?: unknown;
+}
+
 type SwapStatus = "idle" | "swapping" | "confirming" | "done" | "error";
 
 function formatOut(raw: string, decimals: number): string {
-  const n = Number(raw) / Math.pow(10, decimals);
+  const n = Number(atomicToDecimalString(raw, decimals, 8));
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
   if (n >= 1) return n.toFixed(4);
   return n.toFixed(8);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  return Uint8Array.from(globalThis.atob(value), (char) => char.charCodeAt(0));
 }
 
 export default function TradePanel({
@@ -42,16 +57,15 @@ export default function TradePanel({
   tokenDecimals,
   price,
 }: TradePanelProps) {
-  const { login } = usePrivy();
+  const { authenticated: privyAuthenticated, getAccessToken, login, user } = usePrivy();
+  const { linkWallet } = useLinkAccount();
   const [wallet, setWallet] = useState<string | null>(null);
   const [phantomConnected, setPhantomConnected] = useState(false);
 
-  // Connect directly to Phantom's Solana account (not Privy's EVM flow)
   const connectPhantom = async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const phantom = (window as any).solana;
-    if (!phantom?.isPhantom) {
-      alert("Phantom not found. Install phantom.app first.");
+    const phantom = getPhantomProvider();
+    if (!phantom) {
+      setError("Phantom not found. Install Phantom first.");
       return;
     }
     const resp = await phantom.connect();
@@ -60,16 +74,19 @@ export default function TradePanel({
   };
 
   useEffect(() => {
-    // Auto-detect if Phantom is already connected
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const phantom = (window as any).solana;
-    if (phantom?.isPhantom && phantom.isConnected && phantom.publicKey) {
-      setWallet(phantom.publicKey.toString());
-      setPhantomConnected(true);
-    }
+    const timer = setTimeout(() => {
+      const phantom = getPhantomProvider();
+      if (phantom?.isPhantom && phantom.isConnected && phantom.publicKey) {
+        setWallet(phantom.publicKey.toString());
+        setPhantomConnected(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
-  const authenticated = phantomConnected && !!wallet;
+  const linkedWallets = linkedSolanaAddresses(user).map((address) => address.toLowerCase());
+  const walletLinked = wallet ? linkedWallets.includes(wallet.toLowerCase()) : false;
+  const canTrade = privyAuthenticated && phantomConnected && !!wallet && walletLinked;
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("0.1");
@@ -89,26 +106,28 @@ export default function TradePanel({
   const outSymbol = side === "buy" ? tokenSymbol : "SOL";
 
   const fetchQuote = useCallback(async () => {
-    const parsed = parseFloat(amount);
-    if (!parsed || parsed <= 0) { setQuote(null); return; }
+    if (!amount.trim()) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
+
     setQuoting(true);
     setQuoteError(null);
     try {
-      const lamports = Math.floor(parsed * Math.pow(10, inDecimals));
-      const url = `/api/jupiter/quote?inputMint=${inMint}&outputMint=${outMint}&amount=${lamports}&slippageBps=${slippage}`;
-      console.log("[Jupiter quote]", url);
+      const atomicAmount = decimalToAtomic(amount, inDecimals);
+      const url = `/api/jupiter/quote?inputMint=${inMint}&outputMint=${outMint}&amount=${atomicAmount}&slippageBps=${slippage}`;
       const res = await fetch(url);
       const data = await res.json();
-      console.log("[Jupiter quote response]", res.status, data);
       if (res.ok) setQuote(data);
       else setQuoteError(data?.error ?? `Jupiter ${res.status}`);
     } catch (e) {
-      console.error("[Jupiter quote error]", e);
-      setQuoteError(String(e));
+      setQuote(null);
+      setQuoteError(e instanceof Error ? e.message : "Quote failed");
     } finally {
       setQuoting(false);
     }
-  }, [amount, side, inMint, outMint, inDecimals]);
+  }, [amount, inDecimals, inMint, outMint, setQuote, setQuoteError, setQuoting, slippage]);
 
   useEffect(() => {
     const t = setTimeout(fetchQuote, 600);
@@ -118,15 +137,20 @@ export default function TradePanel({
   const reset = () => { setStatus("idle"); setError(null); setTxSig(null); };
 
   const executeSwap = async () => {
-    if (!quote || !wallet) return;
+    if (!quote || !wallet || !canTrade) return;
     setError(null);
     setStatus("swapping");
 
     try {
-      // 1. Get serialized swap tx from Jupiter
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error("Sign in again before trading");
+
       const swapRes = await fetch("/api/jupiter/swap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           quoteResponse: quote,
           userPublicKey: wallet,
@@ -135,38 +159,57 @@ export default function TradePanel({
           prioritizationFeeLamports: "auto",
         }),
       });
-      if (!swapRes.ok) throw new Error("Jupiter failed to build swap transaction");
-      const { swapTransaction } = await swapRes.json();
+      const swapData = await swapRes.json() as JupiterSwapResponse;
+      if (!swapRes.ok) {
+        throw new Error(typeof swapData.error === "string" ? swapData.error : "Jupiter failed to build swap transaction");
+      }
+      const swapTransaction = typeof swapData.swapTransaction === "string" ? swapData.swapTransaction : null;
+      if (!swapTransaction) throw new Error("Jupiter did not return a swap transaction");
+      const lastValidBlockHeight = typeof swapData.lastValidBlockHeight === "number" ? swapData.lastValidBlockHeight : null;
 
-      // 2. Deserialize
-      const tx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, "base64"));
+      const tx = VersionedTransaction.deserialize(base64ToBytes(swapTransaction));
 
-      // 3. Sign with Phantom
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const phantom = (window as any).solana;
-      if (!phantom?.isPhantom) throw new Error("Phantom not found. Install Phantom to trade.");
+      const phantom = getPhantomProvider();
+      if (!phantom) throw new Error("Phantom not found. Install Phantom to trade.");
       const signed = await phantom.signTransaction(tx);
 
-      // 4. Send via Alchemy RPC
       setStatus("confirming");
       const connection = new Connection(RPC, "confirmed");
+      const latestBlockhash = await connection.getLatestBlockhash();
       const sig = await connection.sendRawTransaction(signed.serialize(), {
-        skipPreflight: true,
+        skipPreflight: false,
         maxRetries: 5,
       });
       setTxSig(sig);
 
-      // 5. Record trade immediately after send (don't wait for confirmation to avoid timeout)
-      const solAmount = side === "buy"
-        ? parseFloat(amount)
-        : Number(quote.outAmount) / Math.pow(10, SOL_DECIMALS);
-      const tokenAmount = side === "buy"
-        ? Number(quote.outAmount) / Math.pow(10, tokenDecimals)
-        : parseFloat(amount);
+      const confirmation = lastValidBlockHeight
+        ? await connection.confirmTransaction({
+          signature: sig,
+          blockhash: signed.message.recentBlockhash,
+          lastValidBlockHeight,
+        }, "confirmed")
+        : await connection.confirmTransaction({
+          signature: sig,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        }, "confirmed");
+      if (confirmation.value.err) {
+        throw new Error("Swap failed on-chain");
+      }
 
-      await fetch("/api/trades/record", {
+      const solAmount = side === "buy"
+        ? decimalToNumber(amount).toString()
+        : atomicToDecimalString(quote.outAmount, SOL_DECIMALS, SOL_DECIMALS);
+      const tokenAmount = side === "buy"
+        ? atomicToDecimalString(quote.outAmount, tokenDecimals, tokenDecimals)
+        : decimalToNumber(amount).toString();
+
+      const recordRes = await fetch("/api/trades/record", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           user_wallet: wallet,
           token_mint: tokenAddress,
@@ -179,17 +222,9 @@ export default function TradePanel({
           tx_signature: sig,
         }),
       });
-
-      // 6. Wait for confirmation with longer timeout
-      try {
-        const latestBlockhash = await connection.getLatestBlockhash();
-        await connection.confirmTransaction({
-          signature: sig,
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-        }, "confirmed");
-      } catch {
-        // Confirmation timed out but tx was already sent and recorded — treat as done
+      const recordData = await recordRes.json();
+      if (!recordRes.ok) {
+        throw new Error(recordData?.error ?? "Swap confirmed, but trade recording failed");
       }
 
       setStatus("done");
@@ -251,7 +286,7 @@ export default function TradePanel({
           {quoting && <span style={{ fontSize: 11, color: "var(--cw-dim)" }}>Fetching...</span>}
         </div>
         <div style={{ fontSize: 18, fontWeight: 500, fontFamily: "var(--font-mono)", color: "#fff" }}>
-          {quote ? formatOut(quote.outAmount, outDecimals) : "—"}
+          {quote ? formatOut(quote.outAmount, outDecimals) : "-"}
           <span style={{ fontSize: 13, color: "var(--cw-muted)", marginLeft: 6 }}>{outSymbol}</span>
         </div>
         {quote && (
@@ -270,21 +305,21 @@ export default function TradePanel({
       {/* Tx feedback */}
       {status === "confirming" && txSig && (
         <div style={{ backgroundColor: "rgba(0,217,126,0.05)", border: "1px solid rgba(0,217,126,0.15)", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap submitted ✓</div>
+          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap submitted</div>
           <div style={{ fontSize: 11, color: "var(--cw-dim)", marginBottom: 6 }}>Waiting for on-chain confirmation...</div>
           <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
-            View on Solscan ↗
+            Open in Solscan
           </a>
         </div>
       )}
 
       {status === "done" && txSig && (
         <div style={{ backgroundColor: "rgba(0,217,126,0.08)", border: "1px solid rgba(0,217,126,0.2)", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap confirmed ✓</div>
+          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap confirmed</div>
           <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
-            View on Solscan ↗
+            Open in Solscan
           </a>
         </div>
       )}
@@ -296,18 +331,18 @@ export default function TradePanel({
       )}
 
       {status === "error" && txSig && (
-        <div style={{ backgroundColor: "rgba(0,217,126,0.05)", border: "1px solid rgba(0,217,126,0.15)", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap submitted ✓</div>
-          <div style={{ fontSize: 11, color: "var(--cw-dim)", marginBottom: 6 }}>Transaction sent — verify on Solscan.</div>
+        <div style={{ backgroundColor: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.2)", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 12, color: "var(--cw-red)", fontWeight: 500, marginBottom: 4 }}>Swap needs review</div>
+          <div style={{ fontSize: 11, color: "var(--cw-dim)", marginBottom: 6 }}>{error}</div>
           <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
-            View on Solscan ↗
+            Open in Solscan
           </a>
         </div>
       )}
 
       {/* CTA */}
-      {authenticated ? (
+      {canTrade ? (
         <button
           onClick={status === "done" || status === "error" ? reset : executeSwap}
           disabled={isLoading || (!quote && status === "idle")}
@@ -332,9 +367,24 @@ export default function TradePanel({
             : `${side === "buy" ? "Buy" : "Sell"} ${tokenSymbol}`}
         </button>
       ) : (
-        <button onClick={connectPhantom}
+        <button
+          onClick={() => {
+            if (!privyAuthenticated) {
+              login();
+              return;
+            }
+            if (!wallet) {
+              connectPhantom().catch((e) => setError(e instanceof Error ? e.message : "Unable to connect Phantom"));
+              return;
+            }
+            linkWallet({ walletChainType: "solana-only" });
+          }}
           style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, backgroundColor: "var(--cw-accent)", color: "#080404" }}>
-          Connect Phantom to trade
+          {!privyAuthenticated
+            ? "Sign in to trade"
+            : !wallet
+            ? "Connect Phantom to trade"
+            : "Link wallet to trade"}
         </button>
       )}
 

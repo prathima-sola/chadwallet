@@ -3,6 +3,15 @@ import { getTokenList, type BirdeyeToken } from "@/lib/birdeye";
 import TokenCard, { type Token } from "@/components/TokenCard";
 import TokenSearch from "@/components/TokenSearch";
 
+function formatChange(pct: number): string {
+  const sign = pct >= 0 ? "+" : "";
+  const abs = Math.abs(pct);
+  if (abs >= 1_000_000_000) return `${sign}${(pct / 1_000_000_000).toFixed(1)}B%`;
+  if (abs >= 1_000_000) return `${sign}${(pct / 1_000_000).toFixed(1)}M%`;
+  if (abs >= 10_000) return `${sign}${(pct / 1_000).toFixed(1)}K%`;
+  return `${sign}${pct.toFixed(2)}%`;
+}
+
 function toToken(t: BirdeyeToken): Token {
   return {
     address: t.address,
@@ -81,10 +90,7 @@ export default async function HomePage({
                   color: t.priceChange24h >= 0 ? "var(--cw-green)" : "var(--cw-red)",
                 }}
               >
-                {t.priceChange24h >= 0 ? "+" : ""}
-                {Math.abs(t.priceChange24h) >= 1000
-                  ? `${(t.priceChange24h / 100).toFixed(1)}X`
-                  : `${t.priceChange24h.toFixed(2)}%`}
+                {formatChange(t.priceChange24h)}
               </span>
             </span>
           ))}
@@ -102,7 +108,7 @@ export default async function HomePage({
             marginBottom: 10,
           }}
         >
-          {activeTab.label} memecoins
+          {activeTab.label} tokens
         </div>
 
         {/* Filter tabs + Search */}
@@ -150,11 +156,8 @@ export default async function HomePage({
 
         {/* Token grid */}
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 10,
-          }}
+          className="token-grid"
+          style={{ gap: 10 }}
         >
           {tokens.map((token) => (
             <TokenCard key={token.address} token={token} />

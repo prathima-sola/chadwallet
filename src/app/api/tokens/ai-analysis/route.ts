@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requirePrivyAuth } from "@/lib/privy-server";
 
 export async function POST(req: NextRequest) {
   try {
+    await requirePrivyAuth(req);
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured" }, { status: 500 });
+    }
+
     const body = await req.json();
     const {
       name,
@@ -29,7 +35,7 @@ export async function POST(req: NextRequest) {
         ? ((recentBuys / (recentBuys + recentSells)) * 100).toFixed(0)
         : "unknown";
 
-    const prompt = `You are a Solana memecoin analyst. Analyze this token and return a JSON object only — no markdown, no explanation outside the JSON.
+    const prompt = `You are a Solana memecoin analyst. Analyze this token and return a JSON object only. Do not include markdown or explanation outside the JSON.
 
 Token: ${name} (${symbol})
 Price: $${price}
@@ -38,7 +44,7 @@ Price: $${price}
 Market Cap: $${marketCap ? (marketCap / 1_000_000).toFixed(2) + "M" : "unknown"}
 Liquidity: $${(liquidity / 1_000_000).toFixed(2)}M
 Holders: ${holders?.toLocaleString() ?? "unknown"}
-24h Price Range: $${priceLow24h} – $${priceHigh24h} (${volatility}% volatility)
+24h Price Range: $${priceLow24h} to $${priceHigh24h} (${volatility}% volatility)
 Recent trade ratio: ${buySellRatio}% buys out of last ${recentBuys + recentSells} trades
 Chart bars available: ${barCount}
 
@@ -68,7 +74,6 @@ Return exactly this JSON shape:
 
     const data = await res.json();
     if (!res.ok) {
-      console.error("[ai-analysis] Anthropic error:", data);
       return NextResponse.json({ error: data?.error?.message ?? "Anthropic API error" }, { status: 500 });
     }
 
@@ -78,7 +83,6 @@ Return exactly this JSON shape:
 
     return NextResponse.json(analysis);
   } catch (e) {
-    console.error("[ai-analysis]", e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return authErrorResponse(e) ?? NextResponse.json({ error: e instanceof Error ? e.message : "Analysis failed" }, { status: 500 });
   }
 }

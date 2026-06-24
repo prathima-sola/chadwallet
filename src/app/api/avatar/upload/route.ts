@@ -1,20 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
+import { createR2Client, R2_BUCKET, r2PublicUrl } from "@/lib/r2";
+import { createServerSupabase } from "@/lib/supabase-server";
+import { authErrorResponse, requirePrivyAuth } from "@/lib/privy-server";
+
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
+
+function cleanText(value: FormDataEntryValue | null, maxLength: number): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requirePrivyAuth(req);
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const userId = formData.get("userId") as string | null;
+    const displayName = cleanText(formData.get("displayName"), 80);
 
-    if (!file || !userId) {
-      return NextResponse.json({ error: "Missing file or userId" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "Choose an image to upload" }, { status: 400 });
     }
 
-    // Validate type
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "File must be an image" }, { status: 400 });
+    const ext = ALLOWED_IMAGE_TYPES[file.type];
+    if (!ext) {
+      return NextResponse.json({ error: "Use a JPG, PNG, GIF, or WebP image" }, { status: 400 });
     }
 
     // Max 2MB
@@ -22,11 +38,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File must be under 2MB" }, { status: 400 });
     }
 
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const key = `avatars/${userId}.${ext}`;
+    const key = `avatars/${encodeURIComponent(auth.user_id)}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
+    const publicBaseUrl = r2PublicUrl();
 
-    await r2.send(
+    await createR2Client().send(
       new PutObjectCommand({
         Bucket: R2_BUCKET,
         Key: key,
@@ -36,10 +52,24 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const url = `${R2_PUBLIC_URL}/${key}`;
+    const url = `${publicBaseUrl}/${key}`;
+    const profileUpdate = {
+      user_id: auth.user_id,
+      ...(displayName ? { display_name: displayName } : {}),
+      avatar_url: url,
+      updated_at: new Date().toISOString(),
+    };
+    const supabase = createServerSupabase();
+    const { error } = await supabase
+      .from("profiles")
+      .upsert(profileUpdate, { onConflict: "user_id" });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ url });
   } catch (e) {
-    console.error("[avatar/upload]", e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return authErrorResponse(e) ?? NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

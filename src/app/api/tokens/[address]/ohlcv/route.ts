@@ -1,5 +1,5 @@
 // API route so the client-side chart can refetch OHLCV when the user
-// changes the time interval — keeps BIRDEYE_API_KEY server-side only.
+// changes the time interval while BIRDEYE_API_KEY stays server-side.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getOHLCV } from "@/lib/birdeye";
@@ -16,12 +16,10 @@ export async function GET(
 
   try {
     const bars = await getOHLCV({ address, type, limit });
-    console.log("[OHLCV]", address, type, "→", bars.length, "bars", bars[0] ?? "empty");
     return NextResponse.json(bars, {
       headers: { "Cache-Control": "s-maxage=15, stale-while-revalidate=30" },
     });
   } catch (e) {
-    console.error("[OHLCV error]", String(e));
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

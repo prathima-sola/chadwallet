@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface Trade {
   txHash: string;
@@ -19,7 +19,7 @@ function timeAgo(unixTime: number): string {
 }
 
 function shortWallet(addr: string): string {
-  if (!addr || addr === "unknown") return "—";
+  if (!addr || addr === "unknown") return "-";
   return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
 }
 
@@ -43,24 +43,30 @@ export default function LiveTrades({
 }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchTrades = async () => {
+  const fetchTrades = useCallback(async () => {
     try {
       const res = await fetch(`/api/tokens/${address}/trades`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Unable to load recent trades");
       setTrades(data.trades ?? []);
-    } catch {
-      // keep existing
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load recent trades");
     } finally {
       setLoading(false);
     }
-  };
+  }, [address]);
 
   useEffect(() => {
-    fetchTrades();
+    const initial = setTimeout(() => void fetchTrades(), 0);
     const interval = setInterval(fetchTrades, 15000); // refresh every 15s
-    return () => clearInterval(interval);
-  }, [address]);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
+  }, [fetchTrades]);
 
   if (loading) {
     return (
@@ -73,7 +79,7 @@ export default function LiveTrades({
   if (trades.length === 0) {
     return (
       <div style={{ padding: 20, textAlign: "center", color: "var(--cw-dim)", fontSize: 13 }}>
-        No recent trades
+        {error ?? "No recent trades"}
       </div>
     );
   }
@@ -112,7 +118,7 @@ export default function LiveTrades({
               <span style={{ color: "var(--cw-dim)", fontSize: 10 }}>{tokenSymbol}</span>
             </div>
             <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--cw-muted)" }}>
-              {tx.volumeUSD ? formatUSD(tx.volumeUSD) : "—"}
+              {tx.volumeUSD ? formatUSD(tx.volumeUSD) : "-"}
             </div>
           </div>
         );

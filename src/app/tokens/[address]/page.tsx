@@ -81,6 +81,7 @@ export default async function TokenPage({
         {/* Logo + name */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {overview.logoURI ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={overview.logoURI}
               alt={overview.symbol}
@@ -116,7 +117,7 @@ export default async function TokenPage({
           </div>
         </div>
 
-        {/* Price — live-updating */}
+        {/* Live price */}
         <LivePrice
           address={address}
           initialPrice={overview.price ?? 0}
@@ -144,7 +145,7 @@ export default async function TokenPage({
       </div>
 
       {/* Chart + Trade panel */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px" }}>
+      <div className="token-detail-grid">
         <TokenChart address={address} initialBars={initialBars} />
 
         <div style={{ borderBottom: "1px solid var(--cw-border)" }}>
@@ -159,7 +160,7 @@ export default async function TokenPage({
       </div>
 
       {/* AI Analysis + Live trades */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px" }}>
+      <div className="token-detail-grid">
         {/* Live trades */}
         <div>
           <div
@@ -177,7 +178,7 @@ export default async function TokenPage({
         </div>
 
         {/* AI Analysis + Top Holders */}
-        <div style={{ borderLeft: "1px solid var(--cw-border)" }}>
+        <div className="token-side-panel">
           <div style={{ padding: 16 }}>
           <AIAnalysis
             tokenData={{

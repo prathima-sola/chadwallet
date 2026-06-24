@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
-import { useState, useEffect } from "react";
 import { useAvatar } from "@/lib/avatar-context";
 
 const NAV_LINKS = [
@@ -15,10 +14,7 @@ const NAV_LINKS = [
 export default function Navbar() {
   const pathname = usePathname();
   const { login, logout, ready, authenticated, user } = usePrivy();
-  const [mounted, setMounted] = useState(false);
   const { avatarUrl } = useAvatar();
-
-  useEffect(() => setMounted(true), []);
 
   const displayName =
     user?.google?.name ??
@@ -27,6 +23,7 @@ export default function Navbar() {
 
   return (
     <nav
+      className="app-nav"
       style={{
         display: "flex",
         alignItems: "center",
@@ -41,15 +38,15 @@ export default function Navbar() {
       }}
     >
       {/* Logo */}
-      <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+      <Link className="nav-brand" href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "var(--cw-accent)", display: "inline-block" }} />
         <span style={{ fontSize: 15, fontWeight: 500, color: "#fff", letterSpacing: "-0.3px" }}>ChadWallet</span>
       </Link>
 
       {/* Nav links */}
-      <div style={{ display: "flex", gap: 4 }}>
+      <div className="nav-links" style={{ display: "flex", gap: 4 }}>
         {NAV_LINKS.map(({ href, label }) => {
-          const active = mounted && pathname === href;
+          const active = pathname === href;
           return (
             <Link key={href} href={href}
               style={{
@@ -95,6 +92,7 @@ export default function Navbar() {
               }}
             >
               {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={avatarUrl} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
                 <span style={{ fontSize: 13, color: "var(--cw-accent)", fontWeight: 600 }}>
@@ -102,7 +100,7 @@ export default function Navbar() {
                 </span>
               )}
             </div>
-            <span style={{ fontSize: 12, color: "var(--cw-muted)" }}>{displayName}</span>
+            <span className="nav-profile-name" style={{ fontSize: 12, color: "var(--cw-muted)" }}>{displayName}</span>
           </Link>
         )}
 
@@ -117,7 +115,7 @@ export default function Navbar() {
               transition: "opacity 0.15s",
             }}
           >
-            {authenticated ? "Sign out" : "Connect wallet"}
+            {authenticated ? "Sign out" : "Sign in"}
           </button>
         )}
 

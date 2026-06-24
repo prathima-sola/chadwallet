@@ -27,7 +27,10 @@ function formatCompact(n: number): string {
 
 function formatChange(pct: number): string {
   const sign = pct >= 0 ? "+" : "";
-  if (Math.abs(pct) >= 1000) return `${sign}${(pct / 100).toFixed(1)}X`;
+  const abs = Math.abs(pct);
+  if (abs >= 1_000_000_000) return `${sign}${(pct / 1_000_000_000).toFixed(1)}B%`;
+  if (abs >= 1_000_000) return `${sign}${(pct / 1_000_000).toFixed(1)}M%`;
+  if (abs >= 10_000) return `${sign}${(pct / 1_000).toFixed(1)}K%`;
   return `${sign}${pct.toFixed(2)}%`;
 }
 
@@ -75,6 +78,7 @@ export default function TokenCard({ token }: { token: Token }) {
         {/* Token identity */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           {token.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={token.logoUrl}
               alt={token.symbol}

@@ -38,13 +38,7 @@ export default function Loading() {
         </div>
 
         {/* Card skeletons */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 10,
-          }}
-        >
+        <div className="token-grid" style={{ gap: 10 }}>
           {Array.from({ length: 20 }).map((_, i) => (
             <div
               key={i}

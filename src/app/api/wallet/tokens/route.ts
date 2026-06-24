@@ -1,14 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/privy-server";
+import { requireOwnedSolanaWallet } from "@/lib/wallet-auth";
 
-const RPC_URL = process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+const RPC_URL =
+  process.env.ALCHEMY_SOLANA_RPC_URL ??
+  process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_RPC_URL ??
+  "https://api.mainnet-beta.solana.com";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
-export async function GET(req: NextRequest) {
-  const address = req.nextUrl.searchParams.get("address");
-  if (!address) return NextResponse.json({ error: "Missing address" }, { status: 400 });
+interface RpcTokenAccount {
+  account: {
+    data: {
+      parsed: {
+        info: {
+          mint: string;
+          tokenAmount: {
+            decimals: number;
+            uiAmount: number | null;
+          };
+        };
+      };
+    };
+  };
+}
 
+interface Holding {
+  mint: string;
+  amount: number;
+  decimals: number;
+}
+
+interface DasAsset {
+  result?: {
+    content?: {
+      metadata?: {
+        name?: string;
+        symbol?: string;
+      };
+      links?: {
+        image?: string;
+      };
+      files?: Array<{
+        uri?: string;
+      }>;
+    };
+  };
+}
+
+type CoinGeckoPrices = Record<string, { usd?: number }>;
+
+interface TokenAccountsResponse {
+  result?: {
+    value?: RpcTokenAccount[];
+  };
+  error?: {
+    message?: string;
+  };
+}
+
+export async function GET(req: NextRequest) {
   try {
-    // Fetch all SPL token accounts
+    const { address } = await requireOwnedSolanaWallet(req, req.nextUrl.searchParams.get("address"));
+
+    // Fetch all SPL token accounts.
     const res = await fetch(RPC_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -24,29 +78,33 @@ export async function GET(req: NextRequest) {
       }),
     });
 
-    const json = await res.json();
-    const accounts = json.result?.value ?? [];
+    const json = await res.json().catch(() => null) as TokenAccountsResponse | null;
+    if (!res.ok || !json || json.error) {
+      return NextResponse.json({
+        error: json?.error?.message ?? "Unable to load token accounts from RPC",
+      }, { status: 502 });
+    }
 
-    // Parse into clean token list
-    const tokens = accounts
-      .map((acc: any) => {
+    const accounts: RpcTokenAccount[] = json.result?.value ?? [];
+
+    // Parse into clean token list.
+    const tokens: Holding[] = accounts
+      .map((acc) => {
         const info = acc.account.data.parsed.info;
         return {
           mint: info.mint,
-          amount: info.tokenAmount.uiAmount,
+          amount: info.tokenAmount.uiAmount ?? 0,
           decimals: info.tokenAmount.decimals,
         };
       })
-      .filter((t: any) => t.amount > 0); // skip zero-balance accounts
+      .filter((t) => t.amount > 0);
 
-    // Fetch metadata from Jupiter (free, no API key) + prices from BirdEye
     let withPrices = tokens;
     if (tokens.length > 0) {
-      const mints = tokens.map((t: any) => t.mint).slice(0, 10);
+      const mints = tokens.map((t) => t.mint).slice(0, 50);
 
-      // Fetch token metadata via Alchemy DAS API (getAsset) — uses existing RPC endpoint
       const metaResults = await Promise.allSettled(
-        mints.map((mint: string) =>
+        mints.map((mint) =>
           fetch(RPC_URL, {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -56,19 +114,28 @@ export async function GET(req: NextRequest) {
               method: "getAsset",
               params: { id: mint },
             }),
-          }).then((r) => r.json())
+          }).then((r) => r.json() as Promise<DasAsset>)
         )
       );
+      const metaByMint = new Map<string, DasAsset["result"]>();
+      mints.forEach((mint, i) => {
+        const result = metaResults[i];
+        if (result?.status === "fulfilled" && result.value.result) {
+          metaByMint.set(mint, result.value.result);
+        }
+      });
 
-      // Fetch prices via CoinGecko (free, no key, separate rate limit from BirdEye)
-      const mintList = mints.join(",");
-      const cgRes = await fetch(
-        `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${mintList}&vs_currencies=usd`,
+      const priceParams = new URLSearchParams({
+        contract_addresses: mints.join(","),
+        vs_currencies: "usd",
+      });
+      const cgRes: CoinGeckoPrices = await fetch(
+        `https://api.coingecko.com/api/v3/simple/token_price/solana?${priceParams}`,
         { headers: { accept: "application/json" } }
       ).then((r) => r.json()).catch(() => ({}));
 
-      withPrices = tokens.map((t: any, i: number) => {
-        const asset = metaResults[i].status === "fulfilled" ? metaResults[i].value?.result : null;
+      withPrices = tokens.map((t) => {
+        const asset = metaByMint.get(t.mint);
         const name = asset?.content?.metadata?.name ?? t.mint.slice(0, 6);
         const symbol = asset?.content?.metadata?.symbol ?? "???";
         const logoURI = asset?.content?.links?.image ?? asset?.content?.files?.[0]?.uri ?? null;
@@ -79,6 +146,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tokens: withPrices });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return authErrorResponse(e) ?? NextResponse.json({ error: "Unable to load token holdings" }, { status: 500 });
   }
 }

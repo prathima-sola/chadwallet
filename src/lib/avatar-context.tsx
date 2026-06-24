@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { supabase } from "@/lib/supabase";
 
 interface AvatarContextValue {
   avatarUrl: string | null;
@@ -12,24 +11,41 @@ interface AvatarContextValue {
 const AvatarContext = createContext<AvatarContextValue>({ avatarUrl: null, setAvatarUrl: () => {} });
 
 export function AvatarProvider({ children }: { children: React.ReactNode }) {
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
 
   const userId = user?.id;
 
-  // Load from Supabase when user logs in
+  // Load persisted avatar after Privy identifies the user.
   useEffect(() => {
-    if (!userId) { setAvatarUrlState(null); return; }
-    supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("user_id", userId)
-      .single()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then(({ data }: any) => {
-        if (data?.avatar_url) setAvatarUrlState(data.avatar_url + "?t=" + Date.now());
-      });
-  }, [userId]);
+    let cancelled = false;
+
+    const load = async () => {
+      if (!userId) {
+        setAvatarUrlState(null);
+        return;
+      }
+
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/profile", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (!cancelled) {
+          setAvatarUrlState(data.profile?.avatar_url ? `${data.profile.avatar_url}?t=${Date.now()}` : null);
+        }
+      } catch {
+        if (!cancelled) setAvatarUrlState(null);
+      }
+    };
+
+    const timer = setTimeout(() => void load(), 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [getAccessToken, userId]);
 
   const setAvatarUrl = useCallback((url: string) => {
     setAvatarUrlState(url + "?t=" + Date.now());

@@ -6,25 +6,33 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
-          wallet_address: string;
+          user_id: string;
+          wallet_address: string | null;
           display_name: string | null;
           avatar_url: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
-          wallet_address: string;
+          user_id: string;
+          wallet_address?: string | null;
           display_name?: string | null;
           avatar_url?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
+          wallet_address?: string | null;
           display_name?: string | null;
           avatar_url?: string | null;
+          updated_at?: string;
         };
+        Relationships: [];
       };
       trades: {
         Row: {
           id: string;
+          user_id: string;
           user_wallet: string;
           token_mint: string;
           token_symbol: string;
@@ -38,38 +46,25 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          user_id: string;
           user_wallet: string;
           token_mint: string;
           token_symbol: string;
           token_name: string;
           side: "buy" | "sell";
-          sol_amount: number;
-          token_amount: number;
-          price_usd?: number | null;
+          sol_amount: number | string;
+          token_amount: number | string;
+          price_usd?: number | string | null;
           tx_signature: string;
           created_at?: string;
         };
         Update: never; // trades are immutable
-      };
-      watchlist: {
-        Row: {
-          id: string;
-          user_wallet: string;
-          token_mint: string;
-          token_symbol: string | null;
-          token_name: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_wallet: string;
-          token_mint: string;
-          token_symbol?: string | null;
-          token_name?: string | null;
-          created_at?: string;
-        };
-        Update: never;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };

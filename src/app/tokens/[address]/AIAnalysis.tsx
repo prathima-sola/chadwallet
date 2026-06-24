@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface TokenData {
   name: string;
@@ -48,18 +49,30 @@ const REC_COLOR = {
 };
 
 export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
+  const { authenticated, getAccessToken, login } = usePrivy();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ran, setRan] = useState(false);
 
   const run = async () => {
+    if (!authenticated) {
+      login();
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error("Sign in again to run analysis");
+
       const res = await fetch("/api/tokens/ai-analysis", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(tokenData),
       });
       const data = await res.json();
@@ -129,7 +142,7 @@ export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
             transition: "opacity 0.15s",
           }}
         >
-          {loading ? "Analyzing..." : ran ? "Re-analyze" : "Analyze"}
+          {loading ? "Analyzing..." : authenticated ? (ran ? "Re-analyze" : "Analyze") : "Sign in"}
         </button>
       </div>
 

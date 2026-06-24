@@ -1,53 +1,105 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState, useRef } from "react";
 import { useAvatar } from "@/lib/avatar-context";
 
 export default function ProfilePage() {
-  const { user, ready, authenticated } = usePrivy();
+  const { user, ready, authenticated, getAccessToken } = usePrivy();
   const { avatarUrl, setAvatarUrl } = useAvatar();
   const [uploading, setUploading] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const userId = user?.id;
   const email = user?.google?.email ?? user?.email?.address ?? null;
-  const displayName = user?.google?.name ?? email?.split("@")[0] ?? "Anonymous";
+  const fallbackDisplayName = user?.google?.name ?? email?.split("@")[0] ?? "Anonymous";
+  const displayName = displayNameInput.trim() || fallbackDisplayName;
+
+  useEffect(() => {
+    if (!authenticated || !userId) return;
+    let cancelled = false;
+
+    async function loadProfile() {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/profile", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        const savedName = typeof data.profile?.display_name === "string" ? data.profile.display_name : null;
+        if (!cancelled) setDisplayNameInput(savedName ?? fallbackDisplayName);
+      } catch {
+        if (!cancelled) setDisplayNameInput(fallbackDisplayName);
+      }
+    }
+
+    const timer = setTimeout(() => void loadProfile(), 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [authenticated, fallbackDisplayName, getAccessToken, userId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !userId) return;
 
     setUploading(true);
-    setError(null);
-    setSaved(false);
+      setError(null);
+      setSuccessMessage(null);
 
     try {
       const form = new FormData();
       form.append("file", file);
-      form.append("userId", userId);
+      form.append("displayName", displayName);
 
-      const res = await fetch("/api/avatar/upload", { method: "POST", body: form });
+      const token = await getAccessToken();
+      const res = await fetch("/api/avatar/upload", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("profiles") as any).upsert(
-        { user_id: userId, avatar_url: data.url, display_name: displayName },
-        { onConflict: "user_id" }
-      );
-
-      // Update globally — navbar + profile both refresh
+      // Refresh navbar and profile together.
       setAvatarUrl(data.url);
-      setSaved(true);
+      setSuccessMessage("Profile photo updated.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setUploading(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ display_name: displayNameInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Unable to save profile");
+      setDisplayNameInput(data.profile?.display_name ?? fallbackDisplayName);
+      setSuccessMessage("Profile saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -75,6 +127,7 @@ export default function ProfilePage() {
             cursor: "zoom-out",
           }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={avatarUrl}
             alt="Profile photo"
@@ -106,6 +159,7 @@ export default function ProfilePage() {
           }}
         >
           {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
             <span style={{ fontSize: 28, color: "var(--cw-accent)" }}>
@@ -153,10 +207,56 @@ export default function ProfilePage() {
           overflow: "hidden",
         }}
       >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "120px 1fr auto",
+            gap: 12,
+            alignItems: "center",
+            padding: "14px 16px",
+            borderBottom: "1px solid var(--cw-border)",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--cw-dim)" }}>Display name</span>
+          <input
+            value={displayNameInput}
+            onChange={(e) => {
+              setDisplayNameInput(e.target.value);
+              setSuccessMessage(null);
+            }}
+            maxLength={80}
+            style={{
+              minWidth: 0,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid var(--cw-border)",
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 13,
+              padding: "8px 10px",
+              outline: "none",
+            }}
+          />
+          <button
+            onClick={saveProfile}
+            disabled={savingProfile}
+            style={{
+              fontSize: 12,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "none",
+              backgroundColor: "var(--cw-accent)",
+              color: "#080404",
+              cursor: savingProfile ? "wait" : "pointer",
+              opacity: savingProfile ? 0.65 : 1,
+            }}
+          >
+            {savingProfile ? "Saving..." : "Save"}
+          </button>
+        </div>
+
         {[
-          { label: "Display name", value: displayName },
-          { label: "Email", value: email ?? "—" },
-          { label: "User ID", value: userId ? `${userId.slice(0, 16)}...` : "—" },
+          { label: "Email", value: email ?? "-" },
+          { label: "User ID", value: userId ? `${userId.slice(0, 16)}...` : "-" },
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -176,9 +276,9 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      {saved && (
+      {successMessage && (
         <div style={{ marginTop: 16, fontSize: 13, color: "var(--cw-green)" }}>
-          Avatar updated successfully.
+          {successMessage}
         </div>
       )}
       {error && (

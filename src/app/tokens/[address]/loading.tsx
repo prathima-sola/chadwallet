@@ -21,7 +21,7 @@ export default function Loading() {
       </div>
 
       {/* Chart + panel skeleton */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px" }}>
+      <div className="token-detail-grid">
         <div
           style={{
             height: 432,

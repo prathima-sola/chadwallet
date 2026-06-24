@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { UTCTimestamp, CandlestickData } from "lightweight-charts";
+import type { UTCTimestamp, CandlestickData, IChartApi, ISeriesApi } from "lightweight-charts";
 import type { OHLCVBar } from "@/lib/birdeye";
 
 type Interval = "15m" | "1H" | "4H" | "1D";
@@ -41,13 +41,11 @@ export default function TokenChart({
   initialBars: OHLCVBar[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chartRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const seriesRef = useRef<any>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [interval, setActiveInterval] = useState<Interval>("15m");
   const [bars, setBars] = useState<OHLCVBar[]>(initialBars);
-  const [fetching, setFetching] = useState(false);
+  const [fetching, setFetching] = useState(initialBars.length === 0);
   // Always-current ref so async callbacks can read latest bars
   const barsRef = useRef<OHLCVBar[]>(initialBars);
 
@@ -56,10 +54,9 @@ export default function TokenChart({
     barsRef.current = bars;
   }, [bars]);
 
-  // Initialize chart once — reads barsRef so it always has latest data
+  // Initialize chart once. It reads barsRef so it always has the latest data.
   useEffect(() => {
     if (!containerRef.current) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let cleanup: (() => void) | undefined;
 
     import("lightweight-charts").then(({ createChart, CandlestickSeries }) => {
@@ -95,7 +92,7 @@ export default function TokenChart({
       chartRef.current = chart;
       seriesRef.current = series;
 
-      // Read from ref — catches bars that arrived before chart was ready
+      // Read from ref to catch bars that arrived before chart setup finished.
       if (barsRef.current.length > 0) {
         series.setData(toChartBars(barsRef.current));
         chart.timeScale().fitContent();
@@ -127,7 +124,6 @@ export default function TokenChart({
   // On mount: if server gave us no bars (rate limited), fetch client-side with backoff
   useEffect(() => {
     if (initialBars.length > 0) return;
-    setFetching(true);
     let attempts = 0;
     const MAX = 5;
 
@@ -152,16 +148,15 @@ export default function TokenChart({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refetch on interval change
-  useEffect(() => {
-    if (seriesRef.current === null) return; // skip before chart is ready
+  const loadInterval = (nextInterval: Interval) => {
+    if (nextInterval === interval) return;
+    setActiveInterval(nextInterval);
     setFetching(true);
-    fetch(`/api/tokens/${address}/ohlcv?type=${interval}&limit=200`)
+    fetch(`/api/tokens/${address}/ohlcv?type=${nextInterval}&limit=200`)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setBars(data); setFetching(false); })
       .catch(() => setFetching(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interval]);
+  };
 
   return (
     <div style={{ borderRight: "1px solid var(--cw-border)" }}>
@@ -177,7 +172,7 @@ export default function TokenChart({
         {INTERVALS.map(({ label, value }) => (
           <button
             key={value}
-            onClick={() => setActiveInterval(value)}
+            onClick={() => loadInterval(value)}
             style={{
               fontSize: 12,
               padding: "4px 10px",

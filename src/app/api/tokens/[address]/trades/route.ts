@@ -1,57 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BASE_URL = "https://public-api.birdeye.so";
+import { getTokenTransactions } from "@/lib/birdeye";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ address: string }> }
 ) {
   const { address } = await params;
-  const key = process.env.BIRDEYE_API_KEY ?? "";
 
   try {
-    const res = await fetch(
-      `${BASE_URL}/defi/txs/token?address=${address}&tx_type=swap&sort_type=desc&limit=20`,
-      {
-        headers: {
-          accept: "application/json",
-          "x-chain": "solana",
-          "X-API-KEY": key,
-        },
-        next: { revalidate: 15 },
-      }
-    );
+    const normalizedAddress = address.toLowerCase();
+    const txs = await getTokenTransactions(address, 20);
 
-    if (!res.ok) {
-      return NextResponse.json({ trades: [] });
-    }
+    const trades = txs.map((tx) => {
+      const tokenSide =
+        tx.from.address.toLowerCase() === normalizedAddress ? tx.from :
+        tx.to.address.toLowerCase() === normalizedAddress ? tx.to :
+        tx.side === "buy" ? tx.from : tx.to;
 
-    const json = await res.json();
-    const items = json.data?.items ?? [];
-
-    const trades = items.map((tx: any) => {
-      // BirdEye tx shape: buy = SOL goes "from", token goes "to"; sell = opposite
-      const isBuy = tx.side === "buy";
-      const tokenSide = isBuy ? tx.to : tx.from;
-      const solSide = isBuy ? tx.from : tx.to;
-      const tokenAmount = tokenSide?.uiAmount ?? 0;
-      // volumeUSD: try explicit field first, then compute from SOL amount × SOL price
-      const volumeUSD =
-        tx.volumeUSD ??
-        tx.volume ??
-        (solSide?.uiAmount ? solSide.uiAmount * (tx.solPrice ?? 0) : 0);
       return {
         txHash: tx.txHash,
         blockUnixTime: tx.blockUnixTime,
         side: tx.side,
-        owner: tx.owner ?? tx.source ?? "unknown",
-        volumeUSD,
-        tokenAmount,
+        owner: tx.owner,
+        volumeUSD: tx.volumeUSD,
+        tokenAmount: tokenSide.uiAmount,
       };
     });
 
     return NextResponse.json({ trades });
-  } catch {
-    return NextResponse.json({ trades: [] });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to load recent trades";
+    return NextResponse.json({ trades: [], error: message }, { status: 502 });
   }
 }

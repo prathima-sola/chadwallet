@@ -28,7 +28,7 @@ export default function TokenSearch() {
   }, []);
 
   useEffect(() => {
-    if (query.length < 2) { setResults([]); setOpen(false); return; }
+    if (query.length < 2) return;
     const t = setTimeout(async () => {
       setLoading(true);
       try {
@@ -43,13 +43,21 @@ export default function TokenSearch() {
     return () => clearTimeout(t);
   }, [query]);
 
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    if (value.length < 2) {
+      setResults([]);
+      setOpen(false);
+    }
+  };
+
   return (
     <div ref={ref} style={{ position: "relative", width: 280 }}>
       <div style={{ display: "flex", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid var(--cw-border)", borderRadius: 8, padding: "0 12px", gap: 8 }}>
         <span style={{ fontSize: 13, color: "var(--cw-dim)" }}>⌕</span>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder="Search tokens..."
           style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 13, padding: "8px 0", fontFamily: "inherit" }}
@@ -63,6 +71,7 @@ export default function TokenSearch() {
             <Link key={t.address} href={`/tokens/${t.address}`} onClick={() => { setOpen(false); setQuery(""); }}
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", textDecoration: "none", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
               {t.logoURI ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={t.logoURI} alt={t.symbol} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />
               ) : (
                 <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "rgba(0,217,126,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "var(--cw-accent)" }}>

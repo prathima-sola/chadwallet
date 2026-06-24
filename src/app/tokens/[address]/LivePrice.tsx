@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 function formatPrice(price: number): string {
   if (price >= 1) return `$${price.toFixed(2)}`;
@@ -18,15 +18,13 @@ export default function LivePrice({
   initialChange24h: number;
 }) {
   const [price, setPrice] = useState(initialPrice);
-  const [prevPrice, setPrevPrice] = useState(initialPrice);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
 
-  const fetchPrice = async () => {
+  const fetchPrice = useCallback(async () => {
     try {
       const res = await fetch(`/api/tokens/${address}/price`);
       const data = await res.json();
       if (data.price && data.price !== price) {
-        setPrevPrice((p) => p);
         setFlash(data.price > price ? "up" : "down");
         setPrice(data.price);
         setTimeout(() => setFlash(null), 600);
@@ -34,12 +32,12 @@ export default function LivePrice({
     } catch {
       // keep existing
     }
-  };
+  }, [address, price]);
 
   useEffect(() => {
     const interval = setInterval(fetchPrice, 20000); // every 20s
     return () => clearInterval(interval);
-  }, [address, price]);
+  }, [fetchPrice]);
 
   const isPositive = initialChange24h >= 0;
 

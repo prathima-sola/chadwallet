@@ -1,31 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useState } from "react";
+import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
+import { primarySolanaAddress } from "@/lib/privy-client";
 
 export default function DepositPage() {
-  const { authenticated, ready, login } = usePrivy();
-  const [wallet, setWallet] = useState<string | null>(null);
+  const { authenticated, ready, login, user } = usePrivy();
+  const { linkWallet } = useLinkAccount();
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    // Try to get Phantom wallet address
-    const solana = (window as any).solana;
-    if (solana?.publicKey) {
-      setWallet(solana.publicKey.toString());
-    } else if (solana) {
-      solana.connect({ onlyIfTrusted: true })
-        .then((resp: any) => setWallet(resp.publicKey.toString()))
-        .catch(() => {});
-    }
-  }, [authenticated]);
-
-  const connectPhantom = async () => {
-    const solana = (window as any).solana;
-    if (!solana) { alert("Install Phantom wallet first"); return; }
-    const resp = await solana.connect();
-    setWallet(resp.publicKey.toString());
-  };
+  const wallet = primarySolanaAddress(user);
 
   const copy = () => {
     if (!wallet) return;
@@ -51,15 +34,15 @@ export default function DepositPage() {
   if (!wallet) {
     return (
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-        <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Connect Phantom to see your deposit address</div>
-        <button onClick={connectPhantom} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}>
-          Connect Phantom
+        <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Link a Solana wallet to get your deposit address</div>
+        <button onClick={() => linkWallet({ walletChainType: "solana-only" })} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}>
+          Link Solana wallet
         </button>
       </div>
     );
   }
 
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&bgcolor=080404&color=ffffff&data=${wallet}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&bgcolor=080404&color=ffffff&data=${encodeURIComponent(wallet)}`;
 
   return (
     <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -78,7 +61,7 @@ export default function DepositPage() {
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, backgroundColor: "rgba(0,217,126,0.1)", border: "1px solid rgba(0,217,126,0.2)" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "var(--cw-accent)" }} />
-            <span style={{ fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>Solana · Phantom Wallet</span>
+            <span style={{ fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>Solana wallet</span>
           </div>
         </div>
 
