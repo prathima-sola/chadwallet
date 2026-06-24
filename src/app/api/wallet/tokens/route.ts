@@ -44,10 +44,26 @@ export async function GET(req: NextRequest) {
     if (tokens.length > 0) {
       const mints = tokens.map((t: any) => t.mint).slice(0, 10);
 
-      // Fetch metadata + price from BirdEye token_overview (one call per token)
-      const overviewResults = await Promise.allSettled(
+      // Fetch token metadata via Alchemy DAS API (getAsset) — uses existing RPC endpoint
+      const metaResults = await Promise.allSettled(
         mints.map((mint: string) =>
-          fetch(`https://public-api.birdeye.so/defi/token_overview?address=${mint}`, {
+          fetch(RPC_URL, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "getAsset",
+              params: { id: mint },
+            }),
+          }).then((r) => r.json())
+        )
+      );
+
+      // Fetch prices from BirdEye
+      const priceResults = await Promise.allSettled(
+        mints.map((mint: string) =>
+          fetch(`https://public-api.birdeye.so/defi/price?address=${mint}`, {
             headers: {
               accept: "application/json",
               "x-chain": "solana",
@@ -57,31 +73,13 @@ export async function GET(req: NextRequest) {
         )
       );
 
-      // Fallback: Jupiter token list for any that failed
-      const failedMints = mints.filter((_: string, i: number) => {
-        const r = overviewResults[i];
-        return r.status !== "fulfilled" || !r.value?.data?.symbol;
-      });
-
-      const jupiterMeta: Record<string, any> = {};
-      if (failedMints.length > 0) {
-        await Promise.allSettled(
-          failedMints.map((mint: string) =>
-            fetch(`https://api.jup.ag/tokens/v1/token/${mint}`)
-              .then((r) => r.ok ? r.json() : null)
-              .then((d) => { if (d) jupiterMeta[mint] = d; })
-          )
-        );
-      }
-
       withPrices = tokens.map((t: any, i: number) => {
-        const r = overviewResults[i];
-        const d = r.status === "fulfilled" ? r.value?.data : null;
-        const jup = jupiterMeta[t.mint];
-        const name = d?.name ?? jup?.name ?? t.mint.slice(0, 6);
-        const symbol = d?.symbol ?? jup?.symbol ?? "???";
-        const logoURI = d?.logoURI ?? jup?.logoURI ?? null;
-        const price = d?.price ?? 0;
+        const asset = metaResults[i].status === "fulfilled" ? metaResults[i].value?.result : null;
+        const name = asset?.content?.metadata?.name ?? asset?.content?.json_uri ?? t.mint.slice(0, 6);
+        const symbol = asset?.content?.metadata?.symbol ?? "???";
+        const logoURI = asset?.content?.links?.image ?? asset?.content?.files?.[0]?.uri ?? null;
+        const priceVal = priceResults[i].status === "fulfilled" ? (priceResults[i] as any).value?.data?.value : 0;
+        const price = priceVal ?? 0;
         return { ...t, name, symbol, logoURI, price, usdValue: price * t.amount };
       });
     }
