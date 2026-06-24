@@ -29,14 +29,26 @@ export async function GET(
     const json = await res.json();
     const items = json.data?.items ?? [];
 
-    const trades = items.map((tx: any) => ({
-      txHash: tx.txHash,
-      blockUnixTime: tx.blockUnixTime,
-      side: tx.side,
-      owner: tx.owner ?? tx.source ?? "unknown",
-      volumeUSD: tx.volumeUSD ?? tx.volume ?? 0,
-      tokenAmount: tx.to?.uiAmount ?? tx.from?.uiAmount ?? 0,
-    }));
+    const trades = items.map((tx: any) => {
+      // BirdEye tx shape: buy = SOL goes "from", token goes "to"; sell = opposite
+      const isBuy = tx.side === "buy";
+      const tokenSide = isBuy ? tx.to : tx.from;
+      const solSide = isBuy ? tx.from : tx.to;
+      const tokenAmount = tokenSide?.uiAmount ?? 0;
+      // volumeUSD: try explicit field first, then compute from SOL amount × SOL price
+      const volumeUSD =
+        tx.volumeUSD ??
+        tx.volume ??
+        (solSide?.uiAmount ? solSide.uiAmount * (tx.solPrice ?? 0) : 0);
+      return {
+        txHash: tx.txHash,
+        blockUnixTime: tx.blockUnixTime,
+        side: tx.side,
+        owner: tx.owner ?? tx.source ?? "unknown",
+        volumeUSD,
+        tokenAmount,
+      };
+    });
 
     return NextResponse.json({ trades });
   } catch {
