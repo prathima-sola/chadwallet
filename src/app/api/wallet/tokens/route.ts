@@ -60,25 +60,19 @@ export async function GET(req: NextRequest) {
         )
       );
 
-      // Fetch prices via BirdEye multi_price (one call, same key used by discover page)
+      // Fetch prices via CoinGecko (free, no key, separate rate limit from BirdEye)
       const mintList = mints.join(",");
-      const birdeyePriceRes = await fetch(
-        `https://public-api.birdeye.so/defi/multi_price?list_address=${mintList}`,
-        {
-          headers: {
-            accept: "application/json",
-            "x-chain": "solana",
-            "X-API-KEY": process.env.BIRDEYE_API_KEY ?? "",
-          },
-        }
-      ).then((r) => r.json()).catch(() => ({ data: {} }));
+      const cgRes = await fetch(
+        `https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses=${mintList}&vs_currencies=usd`,
+        { headers: { accept: "application/json" } }
+      ).then((r) => r.json()).catch(() => ({}));
 
       withPrices = tokens.map((t: any, i: number) => {
         const asset = metaResults[i].status === "fulfilled" ? metaResults[i].value?.result : null;
         const name = asset?.content?.metadata?.name ?? t.mint.slice(0, 6);
         const symbol = asset?.content?.metadata?.symbol ?? "???";
         const logoURI = asset?.content?.links?.image ?? asset?.content?.files?.[0]?.uri ?? null;
-        const price = birdeyePriceRes.data?.[t.mint]?.value ?? 0;
+        const price = cgRes?.[t.mint.toLowerCase()]?.usd ?? cgRes?.[t.mint]?.usd ?? 0;
         return { ...t, name, symbol, logoURI, price, usdValue: price * t.amount };
       });
     }

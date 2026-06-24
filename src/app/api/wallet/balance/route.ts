@@ -21,13 +21,13 @@ async function getSolBalance(address: string): Promise<number> {
 
 async function getSolPrice(): Promise<number> {
   try {
-    const key = process.env.BIRDEYE_API_KEY ?? "";
+    // CoinGecko free API — no key needed, separate from BirdEye rate limits
     const res = await fetch(
-      `https://public-api.birdeye.so/defi/token_overview?address=${SOL_MINT}`,
-      { headers: { accept: "application/json", "x-chain": "solana", "X-API-KEY": key } }
+      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+      { headers: { accept: "application/json" }, next: { revalidate: 60 } }
     );
     const json = await res.json();
-    return json.data?.price ?? 0;
+    return json?.solana?.usd ?? 0;
   } catch {
     return 0;
   }
