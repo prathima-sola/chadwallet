@@ -17,6 +17,10 @@ function cleanText(value: FormDataEntryValue | null, maxLength: number): string 
   return trimmed ? trimmed.slice(0, maxLength) : null;
 }
 
+function safeObjectKeyUserId(userId: string): string {
+  return userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await requirePrivyAuth(req);
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File must be under 2MB" }, { status: 400 });
     }
 
-    const key = `avatars/${encodeURIComponent(auth.user_id)}.${ext}`;
+    const key = `avatars/${safeObjectKeyUserId(auth.user_id)}-${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     const publicBaseUrl = r2PublicUrl();
 
