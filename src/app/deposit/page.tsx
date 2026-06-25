@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { primarySolanaAddress } from "@/lib/privy-client";
+import { usePhantomSiwsLink } from "@/lib/use-phantom-siws-link";
 
 export default function DepositPage() {
   const { authenticated, ready, login, user } = usePrivy();
-  const { linkWallet } = useLinkAccount();
   const [copied, setCopied] = useState(false);
+  const { linkPhantom, linking, error: linkError } = usePhantomSiwsLink();
   const wallet = primarySolanaAddress(user);
+
+  const startWalletLink = () => {
+    linkPhantom().catch(() => undefined);
+  };
 
   const copy = () => {
     if (!wallet) return;
@@ -23,9 +28,9 @@ export default function DepositPage() {
   if (!authenticated) {
     return (
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-        <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Connect your wallet to get your deposit address</div>
+        <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Sign in to get your deposit address</div>
         <button onClick={login} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}>
-          Connect wallet
+          Sign in
         </button>
       </div>
     );
@@ -35,9 +40,14 @@ export default function DepositPage() {
     return (
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
         <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Link a Solana wallet to get your deposit address</div>
-        <button onClick={() => linkWallet({ walletChainType: "solana-only" })} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}>
-          Link Solana wallet
+        <button disabled={linking} onClick={startWalletLink} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: linking ? "not-allowed" : "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500, opacity: linking ? 0.7 : 1 }}>
+          {linking ? "Linking Phantom..." : "Link Phantom wallet"}
         </button>
+        {linkError && (
+          <div style={{ maxWidth: 420, textAlign: "center", fontSize: 12, lineHeight: 1.5, color: "var(--cw-red)" }}>
+            {linkError}
+          </div>
+        )}
       </div>
     );
   }

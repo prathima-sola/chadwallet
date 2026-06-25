@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import { primarySolanaAddress } from "@/lib/privy-client";
+import { usePhantomSiwsLink } from "@/lib/use-phantom-siws-link";
 import type { Database } from "@/types/database";
 
 type Trade = Database["public"]["Tables"]["trades"]["Row"];
@@ -75,7 +76,6 @@ function MiniAreaChart({ values, color }: { values: number[]; color: string }) {
 
 export default function PortfolioPage() {
   const { authenticated, ready, login, getAccessToken, user } = usePrivy();
-  const { linkWallet } = useLinkAccount();
   const wallet = primarySolanaAddress(user);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [tokenHoldings, setTokenHoldings] = useState<TokenHolding[]>([]);
@@ -83,6 +83,11 @@ export default function PortfolioPage() {
   const [netWorthUsd, setNetWorthUsd] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { linkPhantom, linking, error: linkError } = usePhantomSiwsLink();
+
+  const startWalletLink = () => {
+    linkPhantom().catch(() => undefined);
+  };
 
   useEffect(() => {
     if (!authenticated || !wallet) return;
@@ -173,11 +178,17 @@ export default function PortfolioPage() {
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
         <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Link a Solana wallet to see your portfolio</div>
         <button
-          onClick={() => linkWallet({ walletChainType: "solana-only" })}
-          style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500 }}
+          disabled={linking}
+          onClick={startWalletLink}
+          style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: linking ? "not-allowed" : "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500, opacity: linking ? 0.7 : 1 }}
         >
-          Link Solana wallet
+          {linking ? "Linking Phantom..." : "Link Phantom wallet"}
         </button>
+        {linkError && (
+          <div style={{ maxWidth: 420, textAlign: "center", fontSize: 12, lineHeight: 1.5, color: "var(--cw-red)" }}>
+            {linkError}
+          </div>
+        )}
       </div>
     );
   }

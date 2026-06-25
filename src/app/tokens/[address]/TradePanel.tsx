@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 import { atomicToDecimalString, decimalToAtomic, decimalToNumber } from "@/lib/amounts";
 import { getPhantomProvider } from "@/lib/phantom";
 import { linkedSolanaAddresses } from "@/lib/privy-client";
+import { usePhantomSiwsLink } from "@/lib/use-phantom-siws-link";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 const SOL_DECIMALS = 9;
@@ -58,20 +59,8 @@ export default function TradePanel({
   price,
 }: TradePanelProps) {
   const { authenticated: privyAuthenticated, getAccessToken, login, user } = usePrivy();
-  const { linkWallet } = useLinkAccount();
   const [wallet, setWallet] = useState<string | null>(null);
   const [phantomConnected, setPhantomConnected] = useState(false);
-
-  const connectPhantom = async () => {
-    const phantom = getPhantomProvider();
-    if (!phantom) {
-      setError("Phantom not found. Install Phantom first.");
-      return;
-    }
-    const resp = await phantom.connect();
-    setWallet(resp.publicKey.toString());
-    setPhantomConnected(true);
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -97,6 +86,7 @@ export default function TradePanel({
   const [txSig, setTxSig] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const { linkPhantom, linking: linkingWallet } = usePhantomSiwsLink();
 
   const inDecimals = side === "buy" ? SOL_DECIMALS : tokenDecimals;
   const inMint = side === "buy" ? SOL_MINT : tokenAddress;
@@ -142,6 +132,17 @@ export default function TradePanel({
   }, [fetchQuote]);
 
   const reset = () => { setStatus("idle"); setError(null); setTxSig(null); };
+
+  const linkPhantomForTrading = async () => {
+    setError(null);
+    try {
+      const address = await linkPhantom();
+      setWallet(address);
+      setPhantomConnected(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to link Phantom wallet.");
+    }
+  };
 
   const executeSwap = async () => {
     if (!quote || !wallet || !canTrade) return;
@@ -393,18 +394,15 @@ export default function TradePanel({
               login();
               return;
             }
-            if (!wallet) {
-              connectPhantom().catch((e) => setError(e instanceof Error ? e.message : "Unable to connect Phantom"));
-              return;
-            }
-            linkWallet({ walletChainType: "solana-only" });
+            linkPhantomForTrading().catch(() => undefined);
           }}
-          style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, backgroundColor: "var(--cw-accent)", color: "#080404" }}>
+          disabled={linkingWallet}
+          style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", cursor: linkingWallet ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500, backgroundColor: "var(--cw-accent)", color: "#080404", opacity: linkingWallet ? 0.7 : 1 }}>
           {!privyAuthenticated
             ? "Sign in to trade"
-            : !wallet
-            ? "Connect Phantom to trade"
-            : "Link wallet to trade"}
+            : linkingWallet
+            ? "Linking Phantom..."
+            : "Link Phantom to trade"}
         </button>
       )}
 

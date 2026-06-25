@@ -3,6 +3,7 @@ export interface PhantomProvider {
   isConnected?: boolean;
   publicKey?: { toString(): string };
   connect(options?: { onlyIfTrusted?: boolean }): Promise<{ publicKey: { toString(): string } }>;
+  signMessage?(message: Uint8Array, display?: "utf8" | "hex"): Promise<{ signature: Uint8Array }>;
   signTransaction<T>(transaction: T): Promise<T>;
 }
 
