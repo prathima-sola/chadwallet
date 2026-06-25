@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { PrivyClient, verifyAccessToken, type VerifyAccessTokenResponse } from "@privy-io/node";
+import { PrivyClient, type VerifyAccessTokenResponse } from "@privy-io/node";
 
 const APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const APP_SECRET = process.env.PRIVY_APP_SECRET;
-const VERIFICATION_KEY = process.env.PRIVY_VERIFICATION_KEY;
 
 export class AuthError extends Error {
   status: number;
@@ -29,21 +28,13 @@ function bearerToken(req: NextRequest): string | null {
 }
 
 export async function requirePrivyAuth(req: NextRequest): Promise<VerifyAccessTokenResponse> {
-  if (!APP_ID || !VERIFICATION_KEY) {
-    throw new AuthError("Privy server auth is not configured", 500);
-  }
-
   const accessToken = bearerToken(req);
   if (!accessToken) {
     throw new AuthError("Sign in to continue", 401);
   }
 
   try {
-    return await verifyAccessToken({
-      access_token: accessToken,
-      app_id: APP_ID,
-      verification_key: VERIFICATION_KEY,
-    });
+    return await privyClient().utils().auth().verifyAccessToken(accessToken);
   } catch {
     throw new AuthError("Your session expired. Sign in again.", 401);
   }
@@ -57,7 +48,6 @@ function privyClient() {
   return new PrivyClient({
     appId: APP_ID,
     appSecret: APP_SECRET,
-    jwtVerificationKey: VERIFICATION_KEY,
   });
 }
 
