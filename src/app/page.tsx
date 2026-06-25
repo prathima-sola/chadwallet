@@ -31,13 +31,26 @@ const TABS = [
   { label: "Losers",   value: "losers",   sortBy: "v24hChangePercent", sortType: "asc" },
 ] as const;
 
+const PAGE_SIZE = 50;
+
+function pageHref(tab: string, page: number): string {
+  const params = new URLSearchParams();
+  if (tab !== "trending") params.set("tab", tab);
+  if (page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return query ? `/?${query}` : "/";
+}
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }) {
-  const { tab } = await searchParams;
+  const { tab, page } = await searchParams;
   const activeTab = TABS.find((t) => t.value === tab) ?? TABS[0];
+  const parsedPage = Number(page ?? "1");
+  const currentPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const offset = (currentPage - 1) * PAGE_SIZE;
 
   let tokens: Token[] = [];
   let error: string | null = null;
@@ -46,7 +59,8 @@ export default async function HomePage({
     const raw = await getTokenList({
       sortBy: activeTab.sortBy,
       sortType: activeTab.sortType,
-      limit: 50,
+      limit: PAGE_SIZE,
+      offset,
     });
     tokens = raw.map(toToken);
   } catch (e) {
@@ -119,7 +133,7 @@ export default async function HomePage({
             return (
               <Link
                 key={t.value}
-                href={t.value === "trending" ? "/" : `/?tab=${t.value}`}
+                href={pageHref(t.value, 1)}
                 style={{
                   fontSize: 12,
                   padding: "5px 12px",
@@ -162,6 +176,44 @@ export default async function HomePage({
           {tokens.map((token) => (
             <TokenCard key={token.address} token={token} />
           ))}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 20 }}>
+          <Link
+            href={pageHref(activeTab.value, Math.max(1, currentPage - 1))}
+            aria-disabled={currentPage === 1}
+            style={{
+              fontSize: 12,
+              padding: "7px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--cw-border)",
+              textDecoration: "none",
+              color: currentPage === 1 ? "var(--cw-dim)" : "#fff",
+              pointerEvents: currentPage === 1 ? "none" : "auto",
+              opacity: currentPage === 1 ? 0.45 : 1,
+            }}
+          >
+            Previous
+          </Link>
+          <span style={{ fontSize: 12, color: "var(--cw-muted)", fontFamily: "var(--font-mono)" }}>
+            Page {currentPage}
+          </span>
+          <Link
+            href={pageHref(activeTab.value, currentPage + 1)}
+            aria-disabled={tokens.length < PAGE_SIZE}
+            style={{
+              fontSize: 12,
+              padding: "7px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--cw-border)",
+              textDecoration: "none",
+              color: tokens.length < PAGE_SIZE ? "var(--cw-dim)" : "#fff",
+              pointerEvents: tokens.length < PAGE_SIZE ? "none" : "auto",
+              opacity: tokens.length < PAGE_SIZE ? 0.45 : 1,
+            }}
+          >
+            Next
+          </Link>
         </div>
       </div>
     </div>

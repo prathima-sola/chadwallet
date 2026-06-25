@@ -104,11 +104,18 @@ export default function TradePanel({
   const outDecimals = side === "buy" ? tokenDecimals : SOL_DECIMALS;
   const inSymbol = side === "buy" ? "SOL" : tokenSymbol;
   const outSymbol = side === "buy" ? tokenSymbol : "SOL";
+  const sameMint = inMint.toLowerCase() === outMint.toLowerCase();
 
   const fetchQuote = useCallback(async () => {
     if (!amount.trim()) {
       setQuote(null);
       setQuoteError(null);
+      return;
+    }
+
+    if (sameMint) {
+      setQuote(null);
+      setQuoteError("SOL is already the base asset. Search for another token to trade.");
       return;
     }
 
@@ -127,7 +134,7 @@ export default function TradePanel({
     } finally {
       setQuoting(false);
     }
-  }, [amount, inDecimals, inMint, outMint, setQuote, setQuoteError, setQuoting, slippage]);
+  }, [amount, inDecimals, inMint, outMint, sameMint, setQuote, setQuoteError, setQuoting, slippage]);
 
   useEffect(() => {
     const t = setTimeout(fetchQuote, 600);
@@ -342,7 +349,20 @@ export default function TradePanel({
       )}
 
       {/* CTA */}
-      {canTrade ? (
+      {sameMint ? (
+        <button
+          disabled
+          style={{
+            width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+            cursor: "not-allowed",
+            fontSize: 14, fontWeight: 500,
+            backgroundColor: "rgba(255,255,255,0.08)",
+            color: "var(--cw-muted)",
+          }}
+        >
+          Choose another token
+        </button>
+      ) : canTrade ? (
         <button
           onClick={status === "done" || status === "error" ? reset : executeSwap}
           disabled={isLoading || (!quote && status === "idle")}

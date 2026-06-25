@@ -9,7 +9,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
       config={{
-        loginMethods: ["wallet", "google", "apple"],
+        loginMethods: ["wallet", "google"],
         appearance: {
           theme: "dark",
           accentColor: "#00d97e",

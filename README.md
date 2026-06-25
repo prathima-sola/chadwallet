@@ -4,7 +4,7 @@ ChadWallet is a Solana trading app built with Next.js, Privy, BirdEye, Alchemy R
 
 ## Production Scope
 
-- Privy handles Google, Apple, and Solana wallet authentication.
+- Privy handles Google and Solana wallet authentication.
 - BirdEye powers token discovery, token pages, holders, live trades, OHLCV, and wallet net worth.
 - Alchemy RPC reads wallet balances, SPL token accounts, and confirmed swap transactions.
 - Jupiter builds Solana swap transactions for user-side signing.
@@ -61,9 +61,9 @@ Use `.env.local.example` as the source of truth for names.
 
 Server-only keys must stay server-only. Do not prefix service role, BirdEye, Anthropic, R2, or Privy app secret values with `NEXT_PUBLIC_`.
 
-## Privy And Apple
+## Apple Sign-In
 
-Apple sign-in requires configuration in Apple Developer and the Privy dashboard.
+Apple sign-in is disabled in the app until Apple Developer enrollment and Privy Apple OAuth configuration are complete.
 
 Confirm these values before debugging Apple login:
 
@@ -74,8 +74,6 @@ Confirm these values before debugging Apple login:
 - Privy redirect URI, usually `https://auth.privy.io/api/v1/oauth/callback`
 - Production domain and local callback settings
 - Exact Apple Developer or Privy error text
-
-The code enables Apple login through Privy, but Apple enrollment failures must be diagnosed from the Apple Developer portal values.
 
 ## Supabase
 

@@ -6,6 +6,7 @@ import LiveTrades from "./LiveTrades";
 import AIAnalysis from "./AIAnalysis";
 import TopHolders from "./TopHolders";
 import LivePrice from "./LivePrice";
+import TokenSearch from "@/components/TokenSearch";
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
@@ -124,8 +125,12 @@ export default async function TokenPage({
           initialChange24h={overview.priceChange24hPercent ?? 0}
         />
 
+        <div style={{ marginLeft: "auto" }}>
+          <TokenSearch />
+        </div>
+
         {/* Stats pills */}
-        <div style={{ display: "flex", gap: 16, marginLeft: "auto", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           {[
             { label: "Mkt cap", value: formatCompact(mc) },
             { label: "Vol 24h", value: formatCompact(overview.v24hUSD ?? 0) },
