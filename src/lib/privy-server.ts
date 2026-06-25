@@ -33,8 +33,10 @@ export async function requirePrivyAuth(req: NextRequest): Promise<VerifyAccessTo
     throw new AuthError("Sign in to continue", 401);
   }
 
+  const auth = privyClient().utils().auth();
+
   try {
-    return await privyClient().utils().auth().verifyAccessToken(accessToken);
+    return await auth.verifyAccessToken(accessToken);
   } catch {
     throw new AuthError("Your session expired. Sign in again.", 401);
   }
