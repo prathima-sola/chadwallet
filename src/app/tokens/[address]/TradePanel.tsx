@@ -13,6 +13,8 @@ const SOL_DECIMALS = 9;
 const RPC =
   process.env.NEXT_PUBLIC_ALCHEMY_SOLANA_RPC_URL ??
   "https://api.mainnet-beta.solana.com";
+const CONFIRMATION_POLL_MS = 1500;
+const CONFIRMATION_TIMEOUT_MS = 45_000;
 
 interface TradePanelProps {
   tokenAddress: string;
@@ -50,6 +52,10 @@ function base64ToBytes(value: string): Uint8Array {
   return Uint8Array.from(globalThis.atob(value), (char) => char.charCodeAt(0));
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function responseError(data: unknown, fallback: string): string {
   if (data && typeof data === "object" && "error" in data && typeof data.error === "string") {
     return data.error;
@@ -70,13 +76,60 @@ function isJupiterQuote(data: unknown): data is JupiterQuote {
 
 function tradeErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (/blockhash/i.test(message)) {
-    return "The Solana transaction expired before it reached the network. Try again to rebuild it with a fresh blockhash.";
+  if (/blockhash|block height exceeded|expired/i.test(message)) {
+    return "The app could not confirm this transaction before the blockhash expired. Open Solscan to verify status before retrying.";
   }
   if (/user rejected|rejected the request|cancel/i.test(message)) {
     return "Transaction cancelled in Phantom.";
   }
   return message;
+}
+
+async function pollSignatureStatus(
+  connection: Connection,
+  signature: string,
+): Promise<"success" | "failed" | "unknown"> {
+  const deadline = Date.now() + CONFIRMATION_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const { value } = await connection.getSignatureStatuses([signature], {
+      searchTransactionHistory: true,
+    });
+    const status = value[0];
+
+    if (status?.err) return "failed";
+    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+      return "success";
+    }
+
+    await delay(CONFIRMATION_POLL_MS);
+  }
+
+  return "unknown";
+}
+
+async function confirmSubmittedTransaction(
+  connection: Connection,
+  signature: string,
+  blockhash: string,
+  lastValidBlockHeight: number,
+): Promise<void> {
+  try {
+    const confirmation = await connection.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight,
+    }, "confirmed");
+
+    if (confirmation.value.err) {
+      throw new Error("Swap failed on-chain");
+    }
+  } catch (caught) {
+    const signatureStatus = await pollSignatureStatus(connection, signature);
+    if (signatureStatus === "success") return;
+    if (signatureStatus === "failed") throw new Error("Swap failed on-chain");
+    throw caught;
+  }
 }
 
 export default function TradePanel({
@@ -229,14 +282,12 @@ export default function TradePanel({
       });
       setTxSig(sig);
 
-      const confirmation = await connection.confirmTransaction({
-          signature: sig,
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-        }, "confirmed");
-      if (confirmation.value.err) {
-        throw new Error("Swap failed on-chain");
-      }
+      await confirmSubmittedTransaction(
+        connection,
+        sig,
+        latestBlockhash.blockhash,
+        latestBlockhash.lastValidBlockHeight,
+      );
 
       const solAmount = side === "buy"
         ? decimalToNumber(amount).toString()
