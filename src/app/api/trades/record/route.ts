@@ -13,6 +13,8 @@ const RPC_URL =
 type JsonRecord = Record<string, unknown>;
 type TradeSide = "buy" | "sell";
 const SOL_DECIMALS = 9;
+const TX_LOOKUP_ATTEMPTS = 6;
+const TX_LOOKUP_DELAY_MS = 1500;
 
 interface ConfirmedTradeAmounts {
   solAmount: string;
@@ -58,6 +60,10 @@ function cleanSignature(value: unknown): string {
 
 function absBigInt(value: bigint): bigint {
   return value < BigInt(0) ? -value : value;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function tokenBalanceRaw(balances: TokenBalance[] | null | undefined, mint: string, owner: string): bigint {
@@ -140,10 +146,18 @@ async function confirmedTradeAmounts(
   side: TradeSide
 ): Promise<ConfirmedTradeAmounts> {
   const connection = new Connection(RPC_URL, "confirmed");
-  const tx = await connection.getParsedTransaction(signature, {
-    commitment: "confirmed",
-    maxSupportedTransactionVersion: 0,
-  });
+  let tx = null;
+  for (let attempt = 0; attempt < TX_LOOKUP_ATTEMPTS; attempt += 1) {
+    tx = await connection.getParsedTransaction(signature, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (tx?.meta) break;
+    if (attempt < TX_LOOKUP_ATTEMPTS - 1) {
+      await delay(TX_LOOKUP_DELAY_MS);
+    }
+  }
 
   if (!tx) {
     throw new Error("Transaction is not confirmed yet");
@@ -190,7 +204,6 @@ export async function POST(req: NextRequest) {
       .from("profiles")
       .upsert({
         user_id: auth.user_id,
-        wallet_address: userWallet,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
 

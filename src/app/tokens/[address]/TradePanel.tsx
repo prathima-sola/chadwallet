@@ -166,6 +166,7 @@ export default function TradePanel({
   const [status, setStatus] = useState<SwapStatus>("idle");
   const [txSig, setTxSig] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recordWarning, setRecordWarning] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const { linkPhantom, linking: linkingWallet } = usePhantomSiwsLink();
 
@@ -220,7 +221,12 @@ export default function TradePanel({
     return () => clearTimeout(t);
   }, [fetchQuote]);
 
-  const reset = () => { setStatus("idle"); setError(null); setTxSig(null); };
+  const reset = () => {
+    setStatus("idle");
+    setError(null);
+    setTxSig(null);
+    setRecordWarning(null);
+  };
 
   const linkPhantomForTrading = async () => {
     setError(null);
@@ -236,6 +242,7 @@ export default function TradePanel({
   const executeSwap = async () => {
     if (!wallet || !canTrade) return;
     setError(null);
+    setRecordWarning(null);
     setStatus("swapping");
 
     try {
@@ -316,7 +323,9 @@ export default function TradePanel({
       });
       const recordData = await recordRes.json();
       if (!recordRes.ok) {
-        throw new Error(recordData?.error ?? "Swap confirmed, but trade recording failed");
+        setRecordWarning(
+          responseError(recordData, "Trade history did not update. Refresh your portfolio before retrying.")
+        );
       }
 
       setStatus("done");
@@ -409,6 +418,11 @@ export default function TradePanel({
       {status === "done" && txSig && (
         <div style={{ backgroundColor: "rgba(0,217,126,0.08)", border: "1px solid rgba(0,217,126,0.2)", borderRadius: 8, padding: 12 }}>
           <div style={{ fontSize: 12, color: "var(--cw-green)", fontWeight: 500, marginBottom: 4 }}>Swap confirmed</div>
+          {recordWarning && (
+            <div style={{ fontSize: 11, color: "#ffbe50", marginBottom: 6 }}>
+              Trade history did not update. Refresh your portfolio before retrying.
+            </div>
+          )}
           <a href={`https://solscan.io/tx/${txSig}`} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 11, color: "var(--cw-accent)", textDecoration: "none", fontFamily: "var(--font-mono)" }}>
             Open in Solscan
