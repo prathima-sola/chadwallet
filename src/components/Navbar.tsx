@@ -116,7 +116,7 @@ export default function Navbar() {
               transition: "opacity 0.15s",
             }}
           >
-            {authenticated ? "Sign out" : "Sign in"}
+            {authenticated ? "Sign out" : "Get started"}
           </button>
         )}
 
