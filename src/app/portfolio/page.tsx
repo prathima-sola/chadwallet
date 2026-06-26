@@ -83,6 +83,7 @@ export default function PortfolioPage() {
   const [netWorthUsd, setNetWorthUsd] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const { linkPhantom, linking, error: linkError } = usePhantomSiwsLink();
 
   const startWalletLink = () => {
@@ -98,6 +99,7 @@ export default function PortfolioPage() {
       async function loadPortfolio() {
         setLoading(true);
         setError(null);
+        setWarnings([]);
 
         try {
           const accessToken = await getAccessToken();
@@ -110,19 +112,24 @@ export default function PortfolioPage() {
             fetch(`/api/wallet/net-worth?address=${encodeURIComponent(walletAddress)}`, { headers }),
           ]);
 
-          const tradesData = await tradesRes.json();
-          const tokensData = await tokensRes.json();
-          const netWorthData: NetWorthResponse = await netWorthRes.json();
+          const tradesData = await tradesRes.json().catch(() => ({ error: "Unable to parse trade history" }));
+          const tokensData = await tokensRes.json().catch(() => ({ error: "Unable to parse token holdings" }));
+          const netWorthData = await netWorthRes.json().catch(() => ({ error: "Unable to parse net worth" })) as NetWorthResponse & { error?: string };
 
           if (!tradesRes.ok) throw new Error(tradesData?.error ?? "Unable to load trade history");
           if (!tokensRes.ok) throw new Error(tokensData?.error ?? "Unable to load token holdings");
-          if (!netWorthRes.ok) throw new Error((netWorthData as { error?: string })?.error ?? "Unable to load net worth");
 
           if (!cancelled) {
             setTrades(tradesData.trades ?? []);
             setTokenHoldings(tokensData.tokens ?? []);
-            setNetWorthUsd(netWorthData.totalValueUsd);
-            setNetWorthHistory(netWorthData.history ?? []);
+            if (netWorthRes.ok) {
+              setNetWorthUsd(netWorthData.totalValueUsd);
+              setNetWorthHistory(netWorthData.history ?? []);
+            } else {
+              setNetWorthUsd(null);
+              setNetWorthHistory([]);
+              setWarnings([netWorthData.error ?? "BirdEye net worth unavailable. Showing token holdings from RPC."]);
+            }
           }
         } catch (e) {
           if (!cancelled) setError(e instanceof Error ? e.message : "Unable to load portfolio");
@@ -217,6 +224,12 @@ export default function PortfolioPage() {
           {error}
         </div>
       )}
+
+      {warnings.map((warning) => (
+        <div key={warning} style={{ backgroundColor: "rgba(255,190,80,0.08)", border: "1px solid rgba(255,190,80,0.2)", borderRadius: 10, padding: "12px 16px", marginBottom: 24, fontSize: 12, color: "#ffbe50" }}>
+          {warning}
+        </div>
+      ))}
 
       <div style={{ backgroundColor: "var(--cw-card)", border: "1px solid var(--cw-border)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
         <div style={{ fontSize: 11, color: "var(--cw-dim)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Net worth</div>
