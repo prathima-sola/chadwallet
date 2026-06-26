@@ -6,7 +6,7 @@ import { useAvatar } from "@/lib/avatar-context";
 
 export default function ProfilePage() {
   const { user, ready, authenticated, getAccessToken } = usePrivy();
-  const { avatarUrl, setAvatarUrl } = useAvatar();
+  const { avatarUrl, setAvatarUrl, setDisplayName } = useAvatar();
   const [uploading, setUploading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +32,15 @@ export default function ProfilePage() {
         });
         const data = await res.json();
         const savedName = typeof data.profile?.display_name === "string" ? data.profile.display_name : null;
-        if (!cancelled) setDisplayNameInput(savedName ?? fallbackDisplayName);
+        if (!cancelled) {
+          setDisplayName(savedName);
+          setDisplayNameInput(savedName ?? fallbackDisplayName);
+        }
       } catch {
-        if (!cancelled) setDisplayNameInput(fallbackDisplayName);
+        if (!cancelled) {
+          setDisplayName(null);
+          setDisplayNameInput(fallbackDisplayName);
+        }
       }
     }
 
@@ -43,7 +49,7 @@ export default function ProfilePage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [authenticated, fallbackDisplayName, getAccessToken, userId]);
+  }, [authenticated, fallbackDisplayName, getAccessToken, setDisplayName, userId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,6 +75,7 @@ export default function ProfilePage() {
 
       // Refresh navbar and profile together.
       setAvatarUrl(data.url);
+      setDisplayName(displayName);
       setSuccessMessage("Profile photo updated.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -94,7 +101,9 @@ export default function ProfilePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Unable to save profile");
-      setDisplayNameInput(data.profile?.display_name ?? fallbackDisplayName);
+      const savedName = data.profile?.display_name ?? fallbackDisplayName;
+      setDisplayName(savedName);
+      setDisplayNameInput(savedName);
       setSuccessMessage("Profile saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

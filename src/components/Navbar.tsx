@@ -14,12 +14,13 @@ const NAV_LINKS = [
 export default function Navbar() {
   const pathname = usePathname();
   const { login, logout, ready, authenticated, user } = usePrivy();
-  const { avatarUrl } = useAvatar();
+  const { avatarUrl, displayName: savedDisplayName } = useAvatar();
 
-  const displayName =
+  const fallbackDisplayName =
     user?.google?.name ??
     user?.google?.email?.split("@")[0] ??
     (user?.wallet?.address ? `${user.wallet.address.slice(0, 4)}...${user.wallet.address.slice(-4)}` : null);
+  const displayName = savedDisplayName ?? fallbackDisplayName;
 
   return (
     <nav
