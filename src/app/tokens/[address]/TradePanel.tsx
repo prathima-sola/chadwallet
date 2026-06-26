@@ -33,7 +33,6 @@ interface JupiterQuote {
 
 interface JupiterSwapResponse {
   swapTransaction?: unknown;
-  lastValidBlockHeight?: unknown;
   error?: unknown;
 }
 
@@ -49,6 +48,35 @@ function formatOut(raw: string, decimals: number): string {
 
 function base64ToBytes(value: string): Uint8Array {
   return Uint8Array.from(globalThis.atob(value), (char) => char.charCodeAt(0));
+}
+
+function responseError(data: unknown, fallback: string): string {
+  if (data && typeof data === "object" && "error" in data && typeof data.error === "string") {
+    return data.error;
+  }
+  return fallback;
+}
+
+function isJupiterQuote(data: unknown): data is JupiterQuote {
+  if (!data || typeof data !== "object") return false;
+  const quote = data as Record<string, unknown>;
+  return typeof quote.outAmount === "string"
+    && typeof quote.priceImpactPct === "string"
+    && typeof quote.otherAmountThreshold === "string"
+    && typeof quote.inputMint === "string"
+    && typeof quote.outputMint === "string"
+    && typeof quote.inAmount === "string";
+}
+
+function tradeErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/blockhash/i.test(message)) {
+    return "The Solana transaction expired before it reached the network. Try again to rebuild it with a fresh blockhash.";
+  }
+  if (/user rejected|rejected the request|cancel/i.test(message)) {
+    return "Transaction cancelled in Phantom.";
+  }
+  return message;
 }
 
 export default function TradePanel({
@@ -96,6 +124,25 @@ export default function TradePanel({
   const outSymbol = side === "buy" ? tokenSymbol : "SOL";
   const sameMint = inMint.toLowerCase() === outMint.toLowerCase();
 
+  const requestQuote = useCallback(async (): Promise<JupiterQuote> => {
+    if (!amount.trim()) throw new Error("Enter an amount to trade.");
+    if (sameMint) {
+      throw new Error("SOL is already the base asset. Search for another token to trade.");
+    }
+
+    const atomicAmount = decimalToAtomic(amount, inDecimals);
+    const url = `/api/jupiter/quote?inputMint=${inMint}&outputMint=${outMint}&amount=${atomicAmount}&slippageBps=${slippage}`;
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(responseError(data, `Jupiter ${res.status}`));
+    }
+    if (!isJupiterQuote(data)) {
+      throw new Error("Jupiter returned an invalid quote.");
+    }
+    return data;
+  }, [amount, inDecimals, inMint, outMint, sameMint, slippage]);
+
   const fetchQuote = useCallback(async () => {
     if (!amount.trim()) {
       setQuote(null);
@@ -103,28 +150,17 @@ export default function TradePanel({
       return;
     }
 
-    if (sameMint) {
-      setQuote(null);
-      setQuoteError("SOL is already the base asset. Search for another token to trade.");
-      return;
-    }
-
     setQuoting(true);
     setQuoteError(null);
     try {
-      const atomicAmount = decimalToAtomic(amount, inDecimals);
-      const url = `/api/jupiter/quote?inputMint=${inMint}&outputMint=${outMint}&amount=${atomicAmount}&slippageBps=${slippage}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (res.ok) setQuote(data);
-      else setQuoteError(data?.error ?? `Jupiter ${res.status}`);
+      setQuote(await requestQuote());
     } catch (e) {
       setQuote(null);
       setQuoteError(e instanceof Error ? e.message : "Quote failed");
     } finally {
       setQuoting(false);
     }
-  }, [amount, inDecimals, inMint, outMint, sameMint, setQuote, setQuoteError, setQuoting, slippage]);
+  }, [amount, requestQuote, setQuote, setQuoteError, setQuoting]);
 
   useEffect(() => {
     const t = setTimeout(fetchQuote, 600);
@@ -145,13 +181,15 @@ export default function TradePanel({
   };
 
   const executeSwap = async () => {
-    if (!quote || !wallet || !canTrade) return;
+    if (!wallet || !canTrade) return;
     setError(null);
     setStatus("swapping");
 
     try {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error("Sign in again before trading");
+      const liveQuote = await requestQuote();
+      setQuote(liveQuote);
 
       const swapRes = await fetch("/api/jupiter/swap", {
         method: "POST",
@@ -160,7 +198,7 @@ export default function TradePanel({
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          quoteResponse: quote,
+          quoteResponse: liveQuote,
           userPublicKey: wallet,
           wrapAndUnwrapSol: true,
           dynamicComputeUnitLimit: true,
@@ -173,30 +211,25 @@ export default function TradePanel({
       }
       const swapTransaction = typeof swapData.swapTransaction === "string" ? swapData.swapTransaction : null;
       if (!swapTransaction) throw new Error("Jupiter did not return a swap transaction");
-      const lastValidBlockHeight = typeof swapData.lastValidBlockHeight === "number" ? swapData.lastValidBlockHeight : null;
 
       const tx = VersionedTransaction.deserialize(base64ToBytes(swapTransaction));
 
       const phantom = getPhantomProvider();
       if (!phantom) throw new Error("Phantom not found. Install Phantom to trade.");
+      const connection = new Connection(RPC, "confirmed");
+      const latestBlockhash = await connection.getLatestBlockhash("confirmed");
+      tx.message.recentBlockhash = latestBlockhash.blockhash;
       const signed = await phantom.signTransaction(tx);
 
       setStatus("confirming");
-      const connection = new Connection(RPC, "confirmed");
-      const latestBlockhash = await connection.getLatestBlockhash();
       const sig = await connection.sendRawTransaction(signed.serialize(), {
         skipPreflight: false,
         maxRetries: 5,
+        preflightCommitment: "confirmed",
       });
       setTxSig(sig);
 
-      const confirmation = lastValidBlockHeight
-        ? await connection.confirmTransaction({
-          signature: sig,
-          blockhash: signed.message.recentBlockhash,
-          lastValidBlockHeight,
-        }, "confirmed")
-        : await connection.confirmTransaction({
+      const confirmation = await connection.confirmTransaction({
           signature: sig,
           blockhash: latestBlockhash.blockhash,
           lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
@@ -207,9 +240,9 @@ export default function TradePanel({
 
       const solAmount = side === "buy"
         ? decimalToNumber(amount).toString()
-        : atomicToDecimalString(quote.outAmount, SOL_DECIMALS, SOL_DECIMALS);
+        : atomicToDecimalString(liveQuote.outAmount, SOL_DECIMALS, SOL_DECIMALS);
       const tokenAmount = side === "buy"
-        ? atomicToDecimalString(quote.outAmount, tokenDecimals, tokenDecimals)
+        ? atomicToDecimalString(liveQuote.outAmount, tokenDecimals, tokenDecimals)
         : decimalToNumber(amount).toString();
 
       const recordRes = await fetch("/api/trades/record", {
@@ -237,7 +270,7 @@ export default function TradePanel({
 
       setStatus("done");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(tradeErrorMessage(e));
       setStatus("error");
     }
   };
@@ -365,7 +398,7 @@ export default function TradePanel({
         </button>
       ) : canTrade ? (
         <button
-          onClick={status === "done" || status === "error" ? reset : executeSwap}
+          onClick={status === "done" ? reset : executeSwap}
           disabled={isLoading || (!quote && status === "idle")}
           style={{
             width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
