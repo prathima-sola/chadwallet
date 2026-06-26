@@ -120,15 +120,20 @@ export default function PortfolioPage() {
           if (!tokensRes.ok) throw new Error(tokensData?.error ?? "Unable to load token holdings");
 
           if (!cancelled) {
+            const loadedTokenHoldings = tokensData.tokens ?? [];
             setTrades(tradesData.trades ?? []);
-            setTokenHoldings(tokensData.tokens ?? []);
+            setTokenHoldings(loadedTokenHoldings);
             if (netWorthRes.ok) {
               setNetWorthUsd(netWorthData.totalValueUsd);
               setNetWorthHistory(netWorthData.history ?? []);
             } else {
               setNetWorthUsd(null);
               setNetWorthHistory([]);
-              setWarnings([netWorthData.error ?? "BirdEye net worth unavailable. Showing token holdings from RPC."]);
+              setWarnings(
+                loadedTokenHoldings.length > 0
+                  ? []
+                  : ["Net worth estimate unavailable. No token holdings found for this wallet."]
+              );
             }
           }
         } catch (e) {
