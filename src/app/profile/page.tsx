@@ -3,6 +3,11 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState, useRef } from "react";
 import { useAvatar } from "@/lib/avatar-context";
+import { primarySolanaAddress } from "@/lib/privy-client";
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
 
 export default function ProfilePage() {
   const { user, ready, authenticated, getAccessToken } = usePrivy();
@@ -17,6 +22,7 @@ export default function ProfilePage() {
 
   const userId = user?.id;
   const email = user?.google?.email ?? user?.email?.address ?? null;
+  const linkedWallet = primarySolanaAddress(user);
   const fallbackDisplayName = user?.google?.name ?? email?.split("@")[0] ?? "Anonymous";
   const displayName = displayNameInput.trim() || fallbackDisplayName;
 
@@ -263,26 +269,45 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        {[
-          { label: "Email", value: email ?? "-" },
-          { label: "User ID", value: userId ? `${userId.slice(0, 16)}...` : "-" },
-        ].map(({ label, value }) => (
-          <div
-            key={label}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "14px 16px",
-              borderBottom: "1px solid var(--cw-border)",
-            }}
-          >
-            <span style={{ fontSize: 13, color: "var(--cw-dim)" }}>{label}</span>
-            <span style={{ fontSize: 13, color: "#fff", fontFamily: label === "User ID" ? "var(--font-mono)" : "inherit" }}>
-              {value}
-            </span>
-          </div>
-        ))}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            padding: "14px 16px",
+            borderBottom: "1px solid var(--cw-border)",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--cw-dim)" }}>Email</span>
+          <span style={{ fontSize: 13, color: "#fff", textAlign: "right" }}>
+            {email ?? "-"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            padding: "14px 16px",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--cw-dim)" }}>Linked wallet</span>
+          {linkedWallet ? (
+            <a
+              href={`https://solscan.io/account/${linkedWallet}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 13, color: "#fff", fontFamily: "var(--font-mono)", textDecoration: "none" }}
+            >
+              {shortAddress(linkedWallet)}
+            </a>
+          ) : (
+            <span style={{ fontSize: 13, color: "var(--cw-muted)" }}>Not linked</span>
+          )}
+        </div>
       </div>
 
       {successMessage && (

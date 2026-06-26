@@ -86,8 +86,8 @@ export default function LiveTrades({
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 60px 90px 80px", gap: 8, padding: "8px 16px", borderBottom: "1px solid var(--cw-border)" }}>
-        {["Time", "Wallet", "Type", "Amount", "Value"].map((h) => (
+      <div style={{ display: "grid", gridTemplateColumns: "60px minmax(90px, 1fr) 44px 60px 90px 80px", gap: 8, padding: "8px 16px", borderBottom: "1px solid var(--cw-border)" }}>
+        {["Time", "Wallet", "Tx", "Type", "Amount", "Value"].map((h) => (
           <div key={h} style={{ fontSize: 10, color: "var(--cw-dim)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             {h}
           </div>
@@ -99,15 +99,25 @@ export default function LiveTrades({
         return (
           <div
             key={`${tx.txHash}-${i}`}
-            style={{ display: "grid", gridTemplateColumns: "60px 1fr 60px 90px 80px", gap: 8, padding: "7px 16px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center" }}
+            style={{ display: "grid", gridTemplateColumns: "60px minmax(90px, 1fr) 44px 60px 90px 80px", gap: 8, padding: "7px 16px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center" }}
           >
             <div style={{ fontSize: 11, color: "var(--cw-dim)", fontFamily: "var(--font-mono)" }}>
               {timeAgo(tx.blockUnixTime)}
             </div>
             <div style={{ fontSize: 12, color: "var(--cw-muted)", fontFamily: "var(--font-mono)" }}>
+              {tx.owner && tx.owner !== "unknown" ? (
+                <a href={`https://solscan.io/account/${tx.owner}`} target="_blank" rel="noopener noreferrer"
+                  style={{ color: "inherit", textDecoration: "none" }}>
+                  {shortWallet(tx.owner)}
+                </a>
+              ) : (
+                "-"
+              )}
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}>
               <a href={`https://solscan.io/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer"
-                style={{ color: "inherit", textDecoration: "none" }}>
-                {shortWallet(tx.owner)}
+                style={{ color: "var(--cw-accent)", textDecoration: "none" }}>
+                View
               </a>
             </div>
             <div style={{ fontSize: 12, fontWeight: 500, color: isBuy ? "var(--cw-green)" : "var(--cw-red)" }}>
