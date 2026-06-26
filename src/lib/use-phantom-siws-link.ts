@@ -33,7 +33,7 @@ export function usePhantomSiwsLink() {
     try {
       const phantom = getPhantomProvider();
       if (!phantom) {
-        throw new Error("Phantom not found. Install Phantom first.");
+        throw new Error("Phantom was not detected. Install the Phantom extension or enable it for this browser, then retry.");
       }
       if (!phantom.signMessage) {
         throw new Error("This Phantom wallet cannot sign Solana messages. Update Phantom and try again.");

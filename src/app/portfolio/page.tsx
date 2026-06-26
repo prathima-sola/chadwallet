@@ -189,6 +189,9 @@ export default function PortfolioPage() {
     return (
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
         <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Link a Solana wallet to see your portfolio</div>
+        <div style={{ maxWidth: 420, textAlign: "center", fontSize: 12, lineHeight: 1.5, color: "var(--cw-dim)" }}>
+          You need Phantom installed and unlocked. Create or import a Solana wallet in Phantom, then connect it here.
+        </div>
         <button
           disabled={linking}
           onClick={startWalletLink}

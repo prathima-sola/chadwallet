@@ -40,6 +40,9 @@ export default function DepositPage() {
     return (
       <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
         <div style={{ fontSize: 15, color: "var(--cw-muted)" }}>Link a Solana wallet to get your deposit address</div>
+        <div style={{ maxWidth: 420, textAlign: "center", fontSize: 12, lineHeight: 1.5, color: "var(--cw-dim)" }}>
+          You need Phantom installed and unlocked. Create or import a Solana wallet in Phantom, then connect it here.
+        </div>
         <button disabled={linking} onClick={startWalletLink} style={{ padding: "10px 24px", borderRadius: 8, border: "none", cursor: linking ? "not-allowed" : "pointer", backgroundColor: "var(--cw-accent)", color: "#080404", fontSize: 14, fontWeight: 500, opacity: linking ? 0.7 : 1 }}>
           {linking ? "Linking Phantom..." : "Link Phantom wallet"}
         </button>

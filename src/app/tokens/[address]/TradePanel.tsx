@@ -486,22 +486,29 @@ export default function TradePanel({
             : `${side === "buy" ? "Buy" : "Sell"} ${tokenSymbol}`}
         </button>
       ) : (
-        <button
-          onClick={() => {
-            if (!privyAuthenticated) {
-              login();
-              return;
-            }
-            linkPhantomForTrading().catch(() => undefined);
-          }}
-          disabled={linkingWallet}
-          style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", cursor: linkingWallet ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500, backgroundColor: "var(--cw-accent)", color: "#080404", opacity: linkingWallet ? 0.7 : 1 }}>
-          {!privyAuthenticated
-            ? "Sign in to trade"
-            : linkingWallet
-            ? "Linking Phantom..."
-            : "Link Phantom to trade"}
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <button
+            onClick={() => {
+              if (!privyAuthenticated) {
+                login();
+                return;
+              }
+              linkPhantomForTrading().catch(() => undefined);
+            }}
+            disabled={linkingWallet}
+            style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", cursor: linkingWallet ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500, backgroundColor: "var(--cw-accent)", color: "#080404", opacity: linkingWallet ? 0.7 : 1 }}>
+            {!privyAuthenticated
+              ? "Sign in to trade"
+              : linkingWallet
+              ? "Linking Phantom..."
+              : "Link Phantom to trade"}
+          </button>
+          <div style={{ textAlign: "center", fontSize: 11, lineHeight: 1.5, color: "var(--cw-dim)" }}>
+            {privyAuthenticated
+              ? "You need Phantom installed and unlocked. Create or import a Solana wallet in Phantom, then connect it here."
+              : "Sign in first, then connect Phantom to trade on Solana."}
+          </div>
+        </div>
       )}
 
       {/* Slippage selector */}
