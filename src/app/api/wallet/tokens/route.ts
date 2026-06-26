@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getTokenOverview } from "@/lib/birdeye";
 import { authErrorResponse } from "@/lib/privy-server";
 import { requireOwnedSolanaWallet } from "@/lib/wallet-auth";
 
@@ -30,6 +31,13 @@ interface Holding {
   decimals: number;
 }
 
+interface TokenMetadata {
+  name?: string;
+  symbol?: string;
+  logoURI?: string | null;
+  price?: number;
+}
+
 interface DasAsset {
   result?: {
     content?: {
@@ -47,6 +55,14 @@ interface DasAsset {
   };
 }
 
+interface BirdeyeOverviewShape {
+  name?: unknown;
+  symbol?: unknown;
+  logoURI?: unknown;
+  logo_uri?: unknown;
+  price?: unknown;
+}
+
 type CoinGeckoPrices = Record<string, { usd?: number }>;
 
 interface TokenAccountsResponse {
@@ -55,6 +71,40 @@ interface TokenAccountsResponse {
   };
   error?: {
     message?: string;
+  };
+}
+
+function textField(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function numberField(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function shortMint(mint: string): string {
+  return `${mint.slice(0, 4)}...${mint.slice(-4)}`;
+}
+
+function normalizeBirdeyeOverview(value: BirdeyeOverviewShape): TokenMetadata {
+  return {
+    name: textField(value.name),
+    symbol: textField(value.symbol),
+    logoURI: textField(value.logoURI) ?? textField(value.logo_uri) ?? null,
+    price: numberField(value.price),
+  };
+}
+
+function normalizeDasAsset(asset: DasAsset["result"]): TokenMetadata {
+  return {
+    name: textField(asset?.content?.metadata?.name),
+    symbol: textField(asset?.content?.metadata?.symbol),
+    logoURI: textField(asset?.content?.links?.image) ?? textField(asset?.content?.files?.[0]?.uri) ?? null,
   };
 }
 
@@ -103,45 +153,72 @@ export async function GET(req: NextRequest) {
     if (tokens.length > 0) {
       const mints = tokens.map((t) => t.mint).slice(0, 50);
 
-      const metaResults = await Promise.allSettled(
-        mints.map((mint) =>
-          fetch(RPC_URL, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 1,
-              method: "getAsset",
-              params: { id: mint },
-            }),
-          }).then((r) => r.json() as Promise<DasAsset>)
-        )
-      );
-      const metaByMint = new Map<string, DasAsset["result"]>();
+      const [overviewResults, metaResults, cgRes] = await Promise.all([
+        Promise.allSettled(
+          mints.map((mint) => getTokenOverview(mint))
+        ),
+        Promise.allSettled(
+          mints.map((mint) =>
+            fetch(RPC_URL, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "getAsset",
+                params: { id: mint },
+              }),
+            }).then((r) => r.json() as Promise<DasAsset>)
+          )
+        ),
+        fetch(
+          `https://api.coingecko.com/api/v3/simple/token_price/solana?${new URLSearchParams({
+            contract_addresses: mints.join(","),
+            vs_currencies: "usd",
+          })}`,
+          { headers: { accept: "application/json" }, next: { revalidate: 60 } }
+        ).then((r) => r.json() as Promise<CoinGeckoPrices>).catch((): CoinGeckoPrices => ({})),
+      ]);
+
+      const overviewByMint = new Map<string, TokenMetadata>();
       mints.forEach((mint, i) => {
-        const result = metaResults[i];
-        if (result?.status === "fulfilled" && result.value.result) {
-          metaByMint.set(mint, result.value.result);
+        const result = overviewResults[i];
+        if (result?.status === "fulfilled") {
+          const metadata = normalizeBirdeyeOverview(result.value as BirdeyeOverviewShape);
+          if (metadata.name || metadata.symbol || metadata.logoURI || metadata.price !== undefined) {
+            overviewByMint.set(mint, metadata);
+          }
         }
       });
 
-      const priceParams = new URLSearchParams({
-        contract_addresses: mints.join(","),
-        vs_currencies: "usd",
+      const assetByMint = new Map<string, TokenMetadata>();
+      mints.forEach((mint, i) => {
+        const result = metaResults[i];
+        if (result?.status === "fulfilled" && result.value.result) {
+          const metadata = normalizeDasAsset(result.value.result);
+          if (metadata.name || metadata.symbol || metadata.logoURI) {
+            assetByMint.set(mint, metadata);
+          }
+        }
       });
-      const cgRes: CoinGeckoPrices = await fetch(
-        `https://api.coingecko.com/api/v3/simple/token_price/solana?${priceParams}`,
-        { headers: { accept: "application/json" } }
-      ).then((r) => r.json()).catch(() => ({}));
 
       withPrices = tokens.map((t) => {
-        const asset = metaByMint.get(t.mint);
-        const name = asset?.content?.metadata?.name ?? t.mint.slice(0, 6);
-        const symbol = asset?.content?.metadata?.symbol ?? "???";
-        const logoURI = asset?.content?.links?.image ?? asset?.content?.files?.[0]?.uri ?? null;
-        const price = cgRes?.[t.mint.toLowerCase()]?.usd ?? cgRes?.[t.mint]?.usd ?? 0;
-        return { ...t, name, symbol, logoURI, price, usdValue: price * t.amount };
-      });
+        const overview = overviewByMint.get(t.mint);
+        const asset = assetByMint.get(t.mint);
+        const price = overview?.price
+          ?? cgRes?.[t.mint.toLowerCase()]?.usd
+          ?? cgRes?.[t.mint]?.usd
+          ?? 0;
+
+        return {
+          ...t,
+          name: overview?.name ?? asset?.name ?? t.mint,
+          symbol: overview?.symbol ?? asset?.symbol ?? shortMint(t.mint),
+          logoURI: overview?.logoURI ?? asset?.logoURI ?? null,
+          price,
+          usdValue: price * t.amount,
+        };
+      }).sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
     }
 
     return NextResponse.json({ tokens: withPrices });
