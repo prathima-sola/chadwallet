@@ -48,6 +48,13 @@ const REC_COLOR = {
   avoid: "var(--cw-red)",
 };
 
+const REC_LABEL = {
+  buy: "BUY",
+  hold: "WATCH",
+  sell: "SELL",
+  avoid: "AVOID",
+};
+
 export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
   const { authenticated, getAccessToken, login } = usePrivy();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -247,7 +254,7 @@ export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
             </div>
           </div>
 
-          {/* Recommendation banner */}
+          {/* Signal banner */}
           <div
             style={{
               display: "flex",
@@ -259,7 +266,7 @@ export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
               padding: "10px 14px",
             }}
           >
-            <span style={{ fontSize: 12, color: "var(--cw-muted)" }}>Recommendation</span>
+            <span style={{ fontSize: 12, color: "var(--cw-muted)" }}>AI signal</span>
             <span
               style={{
                 fontSize: 13,
@@ -269,7 +276,7 @@ export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
                 letterSpacing: "0.5px",
               }}
             >
-              {analysis.recommendation}
+              {REC_LABEL[analysis.recommendation]}
             </span>
           </div>
 
@@ -298,7 +305,7 @@ export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
           </div>
 
           <div style={{ fontSize: 10, color: "var(--cw-dim)", borderTop: "1px solid var(--cw-border)", paddingTop: 10 }}>
-            AI analysis is not financial advice. Memecoins carry extreme risk.
+            AI signal is not financial advice. Confirm liquidity, route, and wallet risk before trading.
           </div>
         </div>
       )}
@@ -306,7 +313,7 @@ export default function AIAnalysis({ tokenData }: { tokenData: TokenData }) {
       {/* Idle state */}
       {!analysis && !loading && !error && (
         <div style={{ padding: "16px", fontSize: 12, color: "var(--cw-dim)", lineHeight: 1.6 }}>
-          Claude analyzes price action, volume, liquidity depth, and recent trade flow to give you a read on this token.
+          Claude reviews price action, volume, liquidity depth, and recent trade flow before producing a signal.
         </div>
       )}
     </div>

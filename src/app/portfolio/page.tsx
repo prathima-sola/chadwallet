@@ -129,11 +129,7 @@ export default function PortfolioPage() {
             } else {
               setNetWorthUsd(null);
               setNetWorthHistory([]);
-              setWarnings(
-                loadedTokenHoldings.length > 0
-                  ? []
-                  : ["Net worth estimate unavailable. No token holdings found for this wallet."]
-              );
+              setWarnings([]);
             }
           }
         } catch (e) {

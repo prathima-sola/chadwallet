@@ -35,7 +35,15 @@ export async function POST(req: NextRequest) {
         ? ((recentBuys / (recentBuys + recentSells)) * 100).toFixed(0)
         : "unknown";
 
-    const prompt = `You are a Solana memecoin analyst. Analyze this token and return a JSON object only. Do not include markdown or explanation outside the JSON.
+    const prompt = `You are a Solana on-chain trading signal analyst. Analyze this token and return a JSON object only. Do not include markdown or explanation outside the JSON.
+
+This output is an informational trading signal, not investment advice. Use only the data below. Do not default to hold.
+
+Signal rules:
+- Use "buy" only when momentum, liquidity, volume, holder count, and recent buy flow all support a short-term bullish setup.
+- Use "hold" only for stablecoins, genuinely mixed data, or a balanced setup where action is unclear.
+- Use "sell" when bearish price action, weak flow, or liquidity risk suggests an existing holder should reduce exposure.
+- Use "avoid" when liquidity is thin, holders are weak, volatility looks manipulated, data is poor, or the move already looks like a chase. If data quality is weak, prefer "avoid" over "hold".
 
 Token: ${name} (${symbol})
 Price: $${price}
@@ -55,7 +63,7 @@ Return exactly this JSON shape:
   "risk": "low" | "medium" | "high" | "extreme",
   "recommendation": "buy" | "hold" | "sell" | "avoid",
   "summary": "<2 sentence max, direct, no fluff>",
-  "signals": ["<signal 1>", "<signal 2>", "<signal 3>"]
+  "signals": ["<specific signal 1>", "<specific signal 2>", "<specific signal 3>"]
 }`;
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {

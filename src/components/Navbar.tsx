@@ -41,7 +41,7 @@ export default function Navbar() {
       {/* Logo */}
       <Link className="nav-brand" href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "var(--cw-accent)", display: "inline-block" }} />
-        <span style={{ fontSize: 15, fontWeight: 500, color: "#fff", letterSpacing: "-0.3px" }}>ChadWallet</span>
+        <span style={{ fontSize: 15, fontWeight: 500, color: "#fff", letterSpacing: 0, whiteSpace: "nowrap" }}>ChadWallet</span>
       </Link>
 
       {/* Nav links */}
@@ -64,9 +64,10 @@ export default function Navbar() {
       </div>
 
       {/* Right: avatar + auth */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div className="nav-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {ready && authenticated && (
           <Link
+            className="nav-profile-link"
             href="/profile"
             style={{
               display: "flex",
