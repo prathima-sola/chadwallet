@@ -31,7 +31,7 @@ const TABS = [
   { label: "Losers",   value: "losers",   sortBy: "v24hChangePercent", sortType: "asc" },
 ] as const;
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 function pageHref(tab: string, page: number): string {
   const params = new URLSearchParams();

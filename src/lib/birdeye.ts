@@ -142,11 +142,13 @@ export async function getTokenList({
 } = {}): Promise<BirdeyeToken[]> {
   // Fetch 3× more than needed so filtering still yields enough results
   const fetchLimit = Math.min(limit * 3, 50);
+  // Scale offset proportionally so page 2 fetches the next BirdEye batch
+  const scaledOffset = Math.floor(offset / limit) * fetchLimit;
   const params = new URLSearchParams({
     sort_by: MEME_SORT_BY[sortBy],
     sort_type: sortType,
     limit: String(fetchLimit),
-    offset: String(offset),
+    offset: String(scaledOffset),
     min_liquidity: String(minLiquidity),
   });
 
