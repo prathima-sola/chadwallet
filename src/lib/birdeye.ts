@@ -85,12 +85,54 @@ function normalizeToken(t: BirdeyeMemeToken): BirdeyeToken | null {
   };
 }
 
+// Known non-meme tokens to exclude by address
+const EXCLUDE_ADDRESSES = new Set([
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
+  "So11111111111111111111111111111111111111112",      // wSOL
+  "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",  // wETH
+  "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E",  // wBTC
+  "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",  // mSOL
+  "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj",  // stSOL
+  "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", // JitoSOL
+  "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",  // bSOL
+  "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh", // wBTC (portal)
+  "85VBFQZC9TZkfaptBWjvUw7YbZjy52A6mjtPGjstQAmQ", // W (wormhole)
+  "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4", // JLP
+  "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",  // JUP
+  "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",  // JITO
+]);
+
+// Symbols that indicate non-memecoin tokens
+const EXCLUDE_SYMBOL_PATTERNS = [
+  /^USD/i, /USDT/i, /USDC/i,           // stablecoins
+  /^wBTC/i, /^wETH/i, /^wSOL/i,        // wrapped assets
+  /^st[A-Z]/,                            // staked tokens
+  /^[A-Z]+SOL$/,                         // xSOL variants
+];
+
+function isLikelyMemecoin(token: BirdeyeToken): boolean {
+  // Exclude by address
+  if (EXCLUDE_ADDRESSES.has(token.address)) return false;
+
+  // Exclude by symbol pattern
+  if (EXCLUDE_SYMBOL_PATTERNS.some((re) => re.test(token.symbol))) return false;
+
+  // Exclude rugged/dead tokens: lost more than 95% in 24h
+  if (token.v24hChangePercent < -95) return false;
+
+  // Exclude tokens with suspiciously low market cap (likely dust/scam with no real activity)
+  if (token.mc > 0 && token.mc < 1000) return false;
+
+  return true;
+}
+
 export async function getTokenList({
   sortBy = "v24hUSD",
   sortType = "desc",
   limit = 20,
   offset = 0,
-  minLiquidity = 1000,
+  minLiquidity = 5000,
 }: {
   sortBy?: SortBy;
   sortType?: SortType;
@@ -98,10 +140,12 @@ export async function getTokenList({
   offset?: number;
   minLiquidity?: number;
 } = {}): Promise<BirdeyeToken[]> {
+  // Fetch 3× more than needed so filtering still yields enough results
+  const fetchLimit = Math.min(limit * 3, 50);
   const params = new URLSearchParams({
     sort_by: MEME_SORT_BY[sortBy],
     sort_type: sortType,
-    limit: String(limit),
+    limit: String(fetchLimit),
     offset: String(offset),
     min_liquidity: String(minLiquidity),
   });
@@ -118,9 +162,21 @@ export async function getTokenList({
   const json = await res.json();
   const tokens: BirdeyeMemeToken[] = json.data?.items ?? [];
 
-  return tokens
+  const normalized = tokens
     .map(normalizeToken)
-    .filter((t): t is BirdeyeToken => t !== null)
+    .filter((t): t is BirdeyeToken => t !== null);
+
+  // Deduplicate by symbol (keep highest volume), then apply memecoin filter
+  const seenSymbols = new Map<string, BirdeyeToken>();
+  for (const t of normalized) {
+    const sym = t.symbol.toUpperCase();
+    if (!seenSymbols.has(sym) || t.v24hUSD > (seenSymbols.get(sym)!.v24hUSD)) {
+      seenSymbols.set(sym, t);
+    }
+  }
+
+  return Array.from(seenSymbols.values())
+    .filter(isLikelyMemecoin)
     .slice(0, limit);
 }
 
