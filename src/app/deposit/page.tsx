@@ -5,6 +5,10 @@ import { usePrivy } from "@privy-io/react-auth";
 import { primarySolanaAddress } from "@/lib/privy-client";
 import { usePhantomSiwsLink } from "@/lib/use-phantom-siws-link";
 
+function shortAddr(address: string) {
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
 export default function DepositPage() {
   const { authenticated, ready, login, user } = usePrivy();
   const [copied, setCopied] = useState(false);
@@ -72,9 +76,10 @@ export default function DepositPage() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, backgroundColor: "rgba(0,217,126,0.1)", border: "1px solid rgba(0,217,126,0.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px", borderRadius: 20, backgroundColor: "rgba(0,217,126,0.1)", border: "1px solid rgba(0,217,126,0.2)" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "var(--cw-accent)" }} />
-            <span style={{ fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>Solana wallet</span>
+            <span style={{ fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>Linked Phantom</span>
+            <span style={{ fontSize: 11, color: "var(--cw-muted)", fontFamily: "var(--font-mono)" }}>{shortAddr(wallet)}</span>
           </div>
         </div>
 

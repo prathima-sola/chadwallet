@@ -213,8 +213,14 @@ export default function PortfolioPage() {
             {wallet[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: 15, color: "#fff", fontWeight: 500, fontFamily: "var(--font-mono)" }}>
-              {shortAddr(wallet)}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 2 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, backgroundColor: "rgba(0,217,126,0.1)", border: "1px solid rgba(0,217,126,0.2)", fontSize: 11, color: "var(--cw-accent)", fontWeight: 500 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "var(--cw-accent)" }} />
+                Linked Phantom
+              </div>
+              <div style={{ fontSize: 15, color: "#fff", fontWeight: 500, fontFamily: "var(--font-mono)" }}>
+                {shortAddr(wallet)}
+              </div>
             </div>
             <Link href="/deposit" style={{ fontSize: 12, color: "var(--cw-accent)", textDecoration: "none" }}>
               Deposit →
