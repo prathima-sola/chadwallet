@@ -132,20 +132,6 @@ Use `.env.local.example` as the source of truth for names.
 
 Server-only keys must stay server-only. Do not prefix service role, BirdEye, Anthropic, R2, or Privy app secret values with `NEXT_PUBLIC_`.
 
-## Apple Sign-In
-
-Apple sign-in is disabled in the app until Apple Developer enrollment and Privy Apple OAuth configuration are complete.
-
-Confirm these values before debugging Apple login:
-
-- Apple Team ID
-- Services ID or App ID
-- Key ID
-- Sign in with Apple private key
-- Privy redirect URI, usually `https://auth.privy.io/api/v1/oauth/callback`
-- Production domain and local callback settings
-- Exact Apple Developer or Privy error text
-
 ## Supabase
 
 Run `supabase/schema.sql` in the Supabase SQL editor for a new project. If the project already has ChadWallet tables, run `supabase/migrations/20260624_privy_auth_trade_hardening.sql` instead. The app uses Privy auth, not Supabase Auth, so reads and writes go through server API routes with the service role key after Privy access-token verification.
