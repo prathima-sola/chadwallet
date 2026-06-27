@@ -1,6 +1,77 @@
 # ChadWallet
 
-ChadWallet is a Solana trading app built with Next.js, Privy, BirdEye, Alchemy RPC, Supabase, Cloudflare R2, and Vercel.
+ChadWallet is a Solana memecoin trading app built with Next.js, Privy, BirdEye, Alchemy RPC, Supabase, Cloudflare R2, and Vercel.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client
+        B[Browser\nNext.js App Router]
+        PH[Phantom\nWallet extension]
+        PR[Privy modal\nGoogle OAuth]
+    end
+
+    subgraph Frontend ["Frontend — Vercel"]
+        PG["Pages\n/ Discover\n/tokens/[address]\n/portfolio · /deposit · /profile"]
+        API["API Routes\n/api/tokens · /api/jupiter\n/api/wallet · /api/profile\n/api/trades · /api/ai-analysis"]
+    end
+
+    subgraph External ["External APIs"]
+        BE[BirdEye\nPrices · OHLCV · Trades · Holders]
+        JUP[Jupiter\nQuote · Swap tx]
+        ALQ[Alchemy RPC\nBalances · SPL accounts · Tx confirm]
+        CG[CoinGecko\nMarket cap fallback]
+    end
+
+    subgraph Storage
+        SB[Supabase\nprofiles · trades]
+        R2[Cloudflare R2\nProfile avatars]
+    end
+
+    SOL[Solana Mainnet]
+
+    B --> PG
+    PH -- signs tx --> PG
+    PR -- session token --> PG
+    PG <--> API
+    API --> BE
+    API --> JUP
+    API --> ALQ
+    API --> CG
+    API --> SB
+    API --> R2
+    JUP -- unsigned tx --> PH
+    PH -- signed tx --> SOL
+    ALQ -- reads --> SOL
+```
+
+## Swap flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant Jupiter
+    participant Phantom
+    participant Solana
+    participant Supabase
+
+    User->>App: Enter amount, click Buy/Sell
+    App->>Jupiter: GET /api/jupiter/quote
+    Jupiter-->>App: Quote (expected output, price impact)
+    App->>Jupiter: POST /api/jupiter/swap (build tx)
+    Jupiter-->>App: Unsigned transaction
+    App->>Phantom: Request signature
+    Phantom-->>User: Approve popup
+    User->>Phantom: Confirm
+    Phantom-->>App: Signed transaction
+    App->>Solana: Broadcast via Alchemy RPC
+    Solana-->>App: Transaction signature
+    App->>Solana: Confirm (getTransaction)
+    Solana-->>App: Confirmed metadata
+    App->>Supabase: Record trade (server-verified)
+```
 
 ## Production Scope
 
